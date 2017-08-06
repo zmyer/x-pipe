@@ -1,6 +1,7 @@
 package com.ctrip.xpipe.redis.console.service.impl;
 
 import java.util.Arrays;
+import java.util.LinkedList;
 import java.util.List;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -8,7 +9,7 @@ import org.springframework.stereotype.Service;
 import org.unidal.dal.jdbc.DalException;
 
 import com.ctrip.xpipe.redis.console.annotation.DalTransaction;
-import com.ctrip.xpipe.redis.console.constant.XpipeConsoleConstant;
+import com.ctrip.xpipe.redis.console.constant.XPipeConsoleConstant;
 import com.ctrip.xpipe.redis.console.dao.ClusterDao;
 import com.ctrip.xpipe.redis.console.exception.BadRequestException;
 import com.ctrip.xpipe.redis.console.migration.status.ClusterStatus;
@@ -82,13 +83,20 @@ public class ClusterServiceImpl extends AbstractConsoleService<ClusterTblDao> im
 
 
 	@Override
-	public List<ClusterTbl> findAllClusterNames() {
-		return queryHandler.handleQuery(new DalQuery<List<ClusterTbl>>() {
+	public List<String> findAllClusterNames() {
+
+		List<ClusterTbl> clusterTbls = queryHandler.handleQuery(new DalQuery<List<ClusterTbl>>() {
 			@Override
 			public List<ClusterTbl> doQuery() throws DalException {
 				return dao.findAllClusters(ClusterTblEntity.READSET_NAME);
 			}
-    	});
+		});
+
+		List<String> clusterNames = new LinkedList<>();
+
+		clusterTbls.forEach( clusterTbl -> clusterNames.add(clusterTbl.getClusterName()));
+
+		return clusterNames;
 	}
 
 	@Override
@@ -109,7 +117,7 @@ public class ClusterServiceImpl extends AbstractConsoleService<ClusterTblDao> im
     	List<ShardModel> shards = clusterModel.getShards();
     	
     	// ensure active dc assigned
-    	if(XpipeConsoleConstant.NO_ACTIVE_DC_TAG == cluster.getActivedcId()) {
+    	if(XPipeConsoleConstant.NO_ACTIVE_DC_TAG == cluster.getActivedcId()) {
     		throw new BadRequestException("No active dc assigned.");
     	}
     	ClusterTbl proto = dao.createLocal();
@@ -130,9 +138,11 @@ public class ClusterServiceImpl extends AbstractConsoleService<ClusterTblDao> im
     	for(DcTbl dc : slaveDcs) {
     		bindDc(cluster.getClusterName(), dc.getDcName());
     	}
-    	
-    	for (ShardModel shard : shards) {
-			shardService.createShard(cluster.getClusterName(), shard.getShardTbl(), shard.getSentinels());
+
+    	if(shards != null){
+			for (ShardModel shard : shards) {
+				shardService.createShard(cluster.getClusterName(), shard.getShardTbl(), shard.getSentinels());
+			}
 		}
     	
     	return result;
@@ -156,6 +166,36 @@ public class ClusterServiceImpl extends AbstractConsoleService<ClusterTblDao> im
 				return clusterDao.updateCluster(queryProto);
 			}
     	});
+	}
+
+	@Override
+	public void updateActivedcId(long id, long activeDcId) {
+
+		ClusterTbl clusterTbl = new ClusterTbl();
+		clusterTbl.setId(id);
+		clusterTbl.setActivedcId(activeDcId);
+
+		queryHandler.handleQuery(new DalQuery<Integer>() {
+			@Override
+			public Integer doQuery() throws DalException {
+				return dao.updateActivedcId(clusterTbl, ClusterTblEntity.UPDATESET_FULL);
+			}
+		});
+	}
+
+	@Override
+	public void updateStatusById(long id, ClusterStatus clusterStatus) {
+
+		ClusterTbl clusterTbl = new ClusterTbl();
+		clusterTbl.setId(id);
+		clusterTbl.setStatus(clusterStatus.toString());
+
+		queryHandler.handleQuery(new DalQuery<Integer>() {
+			@Override
+			public Integer doQuery() throws DalException {
+				return dao.updateStatusById(clusterTbl, ClusterTblEntity.UPDATESET_FULL);
+			}
+		});
 	}
 
 	@Override

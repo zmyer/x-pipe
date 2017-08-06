@@ -1,6 +1,7 @@
 package com.ctrip.xpipe.redis.console.migration.status.migration;
 
 import com.ctrip.xpipe.redis.console.migration.model.MigrationCluster;
+import com.ctrip.xpipe.redis.console.migration.status.MigrationState;
 import com.ctrip.xpipe.redis.console.migration.status.MigrationStatus;
 
 /**
@@ -17,13 +18,18 @@ public class MigrationAbortedState extends AbstractMigrationState implements Mig
 	}
 
 	@Override
-	public void action() {
+	protected void doRollback() {
+		throw new UnsupportedOperationException("rollback success, can not rollback:" + getStatus());
+	}
+
+	@Override
+	public void doAction() {
 		getHolder().update(getHolder(), getHolder());
 	}
 	
 	@Override
 	public void refresh() {
 		// Nothing to do
-		logger.debug("[MigrationCancelled]{}", getHolder().getCurrentCluster().getClusterName());
+		logger.debug("[MigrationCancelled]{}", getHolder().clusterName());
 	}
 }

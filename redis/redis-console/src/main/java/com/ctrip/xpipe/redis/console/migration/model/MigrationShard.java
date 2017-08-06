@@ -9,4 +9,10 @@ import com.ctrip.xpipe.api.observer.Observer;
  */
 public interface MigrationShard extends MigrationShardInfoHolder, MigrationShardAction, Observer{
 
+    String shardName();
+
+    ShardMigrationStepResult stepResult(ShardMigrationStep step);
+
+    void retry(ShardMigrationStep step);
+
 }

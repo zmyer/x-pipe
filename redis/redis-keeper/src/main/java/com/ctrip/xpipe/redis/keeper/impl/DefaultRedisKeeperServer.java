@@ -202,7 +202,7 @@ public class DefaultRedisKeeperServer extends AbstractRedisServer implements Red
 	@Override
 	protected void doStart() throws Exception {
 		super.doStart();
-		replicationStoreManager.start();;		
+		replicationStoreManager.start();
 		keeperStartTime = System.currentTimeMillis();
 		startServer();
 		this.leaderElector.start();
@@ -454,7 +454,7 @@ public class DefaultRedisKeeperServer extends AbstractRedisServer implements Red
 		transactionMonitor.logTransactionSwallowException("setRedisKeeperServerState", name, new Task() {
 			
 			@Override
-			public void go() throws Throwable {
+			public void go() throws Exception {
 				
 				RedisKeeperServerState previous = DefaultRedisKeeperServer.this.redisKeeperServerState;
 				logger.info("[setRedisKeeperServerState]{}, {}->{}", this, previous, redisKeeperServerState);

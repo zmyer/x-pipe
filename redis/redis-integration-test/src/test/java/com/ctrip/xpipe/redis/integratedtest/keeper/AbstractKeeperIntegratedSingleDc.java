@@ -86,14 +86,14 @@ public class AbstractKeeperIntegratedSingleDc extends AbstractKeeperIntegrated{
 		
 		RedisMeta redisMaster = getRedisMaster();
 		
-		KeeperStateChangeJob job = new KeeperStateChangeJob(keepers, new Pair<String, Integer>(redisMaster.getIp(), redisMaster.getPort()), getXpipeNettyClientKeyedObjectPool(), scheduled);
+		KeeperStateChangeJob job = new KeeperStateChangeJob(keepers, new Pair<String, Integer>(redisMaster.getIp(), redisMaster.getPort()), getXpipeNettyClientKeyedObjectPool(), scheduled, executors);
 		job.execute().sync();
 	}
 
 	protected void startRedises() throws ExecuteException, IOException{
 		
 		for(RedisMeta redisMeta : getDcRedises(dc, getClusterId(), getShardId())){
-			startRedis(getDcMeta(), redisMeta);
+			startRedis(redisMeta);
 		}
 	}
 	

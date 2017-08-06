@@ -1,15 +1,15 @@
 package com.ctrip.xpipe.redis.meta.server.cluster.impl;
 
-
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import com.ctrip.xpipe.redis.meta.server.cluster.*;
+import com.ctrip.xpipe.spring.AbstractSpringConfigContext;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -21,17 +21,12 @@ import com.ctrip.xpipe.lifecycle.AbstractLifecycle;
 import com.ctrip.xpipe.observer.NodeAdded;
 import com.ctrip.xpipe.observer.NodeDeleted;
 import com.ctrip.xpipe.observer.NodeModified;
-import com.ctrip.xpipe.redis.meta.server.cluster.ClusterArranger;
-import com.ctrip.xpipe.redis.meta.server.cluster.ClusterServer;
-import com.ctrip.xpipe.redis.meta.server.cluster.ClusterServers;
-import com.ctrip.xpipe.redis.meta.server.cluster.RemoteClusterServerFactory;
-import com.ctrip.xpipe.redis.meta.server.cluster.SlotInfo;
-import com.ctrip.xpipe.redis.meta.server.cluster.SlotManager;
 import com.ctrip.xpipe.redis.meta.server.cluster.task.ContinueResharding;
 import com.ctrip.xpipe.redis.meta.server.cluster.task.InitResharding;
 import com.ctrip.xpipe.redis.meta.server.config.MetaServerConfig;
-import com.ctrip.xpipe.utils.XpipeThreadFactory;
 import com.ctrip.xpipe.zk.ZkClient;
+
+import javax.annotation.Resource;
 
 
 /**
@@ -53,8 +48,9 @@ public class DefaultClusterArranger extends AbstractLifecycle implements Cluster
 	
 	@Autowired
 	private RemoteClusterServerFactory<?> remoteClusterServerFactory;
-	
-	private ScheduledExecutorService scheduled = Executors.newScheduledThreadPool(2, XpipeThreadFactory.create("Slot_Arranger"));
+
+	@Resource(name = AbstractSpringConfigContext.SCHEDULED_EXECUTOR)
+	private ScheduledExecutorService scheduled;
 
 	@Autowired
 	private SlotManager slotManager;
@@ -97,23 +93,22 @@ public class DefaultClusterArranger extends AbstractLifecycle implements Cluster
 	@Override
 	protected void doDispose() throws Exception {
 		
-		scheduled.shutdownNow();
 		super.doDispose();
 	}
 	
-	private void refresh() throws Exception {
+	private void refresh() throws ClusterException {
 		slotManager.refresh();
 		clusterServers.refresh();
 		
 	}
 
-	protected void periodCheck() throws Exception {
+	protected void periodCheck() {
 		
 		checkDeadServer();
 		arrangeTaskTrigger.rebalance();
 	}
 
-	private void initCheck() throws Exception {
+	private void initCheck() throws ClusterException {
 		refresh();
 		
 		checkNotExist();
@@ -167,7 +162,7 @@ public class DefaultClusterArranger extends AbstractLifecycle implements Cluster
 
 	@Override
 	public void notLeader() {
-		logger.info("[notLeader]");
+		logger.info("[notCrossDcLeader]");
 		if(leader.compareAndSet(true, false)){
 			clusterServers.removeObserver(this);
 			if(future != null){

@@ -22,8 +22,7 @@
                 <TimeBasedTriggeringPolicy/>
                 <SizeBasedTriggeringPolicy size="100 MB"/>
             </Policies>
-        </RollingFile>	
-
+        </RollingFile>
     </appenders>
 
     <loggers>
@@ -34,11 +33,14 @@
         <logger name="org.apache" level="WARN"/>
 
         <logger name="com.ctrip.xpipe.lifecycle.DefaultLifecycleState" level="WARN"/>
-        <logger name="com.ctrip.xpipe.redis.console.monitor.impl.StandaloneStatMonitor" level="DEBUG"/>
 		<logger name="com.ctrip.xpipe.lifecycle.DefaultRegistry" level="WARN"/>
-		<logger name="com.mchange.v2.c3p0.impl.AbstractPoolBackedDataSource" level="WARN"/>
-		<logger name="org.h2" level="DEBUG"/>
-        
+
+        <!--
+        <logger name="com.ctrip.xpipe.redis.console.health.sentinel.DefaultSentinelCollector" level="DEBUG"/>
+        <logger name="com.ctrip.xpipe.redis.console.health.sentinel.SentinelMonitor" level="DEBUG"/>
+        <logger name="com.ctrip.xpipe.redis.console.health.HealthChecker" level="DEBUG"/>
+        <logger name="com.ctrip.xpipe.redis.console.health.delay.DefaultDelayMonitor" level="DEBUG"/>
+        -->
         <root level="INFO">
         	<appender-ref ref="Console"/>
             <appender-ref ref="RollingFileInfo"/>

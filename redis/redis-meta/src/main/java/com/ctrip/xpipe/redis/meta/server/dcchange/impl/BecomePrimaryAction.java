@@ -5,11 +5,10 @@ import java.net.InetSocketAddress;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
+import java.util.concurrent.*;
 
+import com.ctrip.xpipe.redis.core.meta.MetaUtils;
+import com.ctrip.xpipe.utils.StringUtil;
 import org.unidal.tuple.Pair;
 
 import com.ctrip.xpipe.api.command.Command;
@@ -38,8 +37,8 @@ public class BecomePrimaryAction extends AbstractChangePrimaryDcAction{
 
 	private NewMasterChooser newMasterChooser;
 
-	public BecomePrimaryAction(DcMetaCache dcMetaCache, CurrentMetaManager currentMetaManager, SentinelManager sentinelManager, XpipeNettyClientKeyedObjectPool keyedObjectPool, NewMasterChooser newMasterChooser, ScheduledExecutorService scheduled) {
-		super(dcMetaCache, currentMetaManager, sentinelManager, keyedObjectPool, scheduled);
+	public BecomePrimaryAction(DcMetaCache dcMetaCache, CurrentMetaManager currentMetaManager, SentinelManager sentinelManager, XpipeNettyClientKeyedObjectPool keyedObjectPool, NewMasterChooser newMasterChooser, ScheduledExecutorService scheduled, Executor executors) {
+		super(dcMetaCache, currentMetaManager, sentinelManager, keyedObjectPool, scheduled, executors);
 		this.newMasterChooser = newMasterChooser;
 	}
 
@@ -87,17 +86,18 @@ public class BecomePrimaryAction extends AbstractChangePrimaryDcAction{
 		try {
 			String result = command.execute().get();
 			executionLog.info("[make redis master]" + result);
-			
-			RedisReadonly redisReadOnly = RedisReadonly.create(newMaster.getKey(), newMaster.getValue(), keyedObjectPool, scheduled); 
-			redisReadOnly.makeWritable();
+			RedisReadonly redisReadOnly = RedisReadonly.create(newMaster.getKey(), newMaster.getValue(), keyedObjectPool, scheduled);
+			if(!(redisReadOnly instanceof SlaveOfRedisReadOnly)){
+				redisReadOnly.makeWritable();
+			}
 		} catch (Exception e) {
 			logger.error("[makeRedisesOk]" + newMaster, e);
 			executionLog.error("[make redis master fail]" + e.getMessage());
 			throw new MakeRedisMasterFailException("make redis master:" + newMaster, e);
 		}
 		
-		executionLog.info("[make slaves slaveof]" + newMaster + "," + slaves);
-		Command<Void> slavesJob = new DefaultSlaveOfJob(slaves, newMaster.getKey(), newMaster.getValue(), keyedObjectPool, scheduled);
+		executionLog.info("[make slaves slaveof][begin]" + newMaster + "," + slaves);
+		Command<Void> slavesJob = new DefaultSlaveOfJob(slaves, newMaster.getKey(), newMaster.getValue(), keyedObjectPool, scheduled, executors);
 		try {
 			slavesJob.execute().get(waitTimeoutSeconds, TimeUnit.SECONDS);
 			executionLog.info("[make slaves slaveof]success");
@@ -112,9 +112,11 @@ public class BecomePrimaryAction extends AbstractChangePrimaryDcAction{
 	protected Pair<String, Integer> chooseNewMaster(String clusterId, String shardId) {
 
 		List<RedisMeta> redises = dcMetaCache.getShardRedises(clusterId, shardId);
+		String desc = MetaUtils.toString(redises);
+		executionLog.info("[chooseNewMaster][from]" + desc);
 		RedisMeta newMaster = newMasterChooser.choose(redises);
 		if(newMaster == null){
-			throw new ChooseNewMasterFailException(redises);
+			throw ChooseNewMasterFailException.chooseNull(redises);
 		}
 		return new Pair<>(newMaster.getIp(), newMaster.getPort());
 	}

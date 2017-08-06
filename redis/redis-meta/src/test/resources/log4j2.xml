@@ -15,12 +15,12 @@
             </ScriptFilter>
         </console>
 
-        <RollingFile name="rollingFileInfo" fileName="target/metaserver.log"
+        <RollingFile name="rollingFileInfo" fileName="target/metaserver-${sys:server.port}.log"
                      filePattern="target/metaserver-%d{yyyy-MM-dd}-%i.log">
             <PatternLayout pattern="[%d{HH:mm:ss:SSS}][%p][%t][%c{1}]%m%xpEx{filters(org.junit,org.eclipse.jdt.internal,org.apache.maven.surefire,org.mockito,org.apache.catalina,org.springframework.web,com.dianping.cat)}%n"/>
             <Policies>
                 <TimeBasedTriggeringPolicy/>
-                <SizeBasedTriggeringPolicy size="100 MB"/>
+                <SizeBasedTriggeringPolicy size="500 MB"/>
             </Policies>
         </RollingFile>
 

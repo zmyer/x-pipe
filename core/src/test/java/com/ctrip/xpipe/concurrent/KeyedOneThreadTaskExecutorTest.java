@@ -20,7 +20,7 @@ public class KeyedOneThreadTaskExecutorTest extends AbstractTest{
 	
 	@Before
 	public void beforeKeyedOneThreadTaskExecutorTest(){
-		 keyed = new KeyedOneThreadTaskExecutor<>(getTestName());
+		 keyed = new KeyedOneThreadTaskExecutor<>(executors);
 	}
 
 
@@ -58,6 +58,6 @@ public class KeyedOneThreadTaskExecutorTest extends AbstractTest{
 
 	@After
 	public void afterKeyedOneThreadTaskExecutorTest() throws Exception{
-		 keyed.destroy();;
+		 keyed.destroy();
 	}
 }

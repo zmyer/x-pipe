@@ -1,9 +1,11 @@
 package com.ctrip.xpipe.redis.meta.server.dcchange;
 
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledExecutorService;
 
 import javax.annotation.Resource;
 
+import com.ctrip.xpipe.spring.AbstractSpringConfigContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -33,9 +35,12 @@ public class DefaultChangePrimaryDcAction implements ChangePrimaryDcAction{
 	@Resource(name = MetaServerContextConfig.CLIENT_POOL)
 	private XpipeNettyClientKeyedObjectPool keyedObjectPool;
 
-	@Resource(name = MetaServerContextConfig.SCHEDULED_EXECUTOR)
+	@Resource(name = AbstractSpringConfigContext.SCHEDULED_EXECUTOR)
 	private ScheduledExecutorService scheduled;
-	
+
+	@Resource(name = AbstractSpringConfigContext.GLOBAL_EXECUTOR)
+	private ExecutorService executors;
+
 	@Autowired
 	private DcMetaCache  dcMetaCache;
 	
@@ -59,16 +64,16 @@ public class DefaultChangePrimaryDcAction implements ChangePrimaryDcAction{
 		ChangePrimaryDcAction changePrimaryDcAction = null;
 		if(newPrimaryDc.equalsIgnoreCase(dcMetaCache.getCurrentDc())){
 			logger.info("[doChangePrimaryDc][become primary]{}, {}", clusterId, shardId, newPrimaryDc);
-			changePrimaryDcAction = new BecomePrimaryAction(dcMetaCache, currentMetaManager, sentinelManager, keyedObjectPool, createNewMasterChooser(), scheduled);
+			changePrimaryDcAction = new BecomePrimaryAction(dcMetaCache, currentMetaManager, sentinelManager, keyedObjectPool, createNewMasterChooser(), scheduled, executors);
 		}else{
 			logger.info("[doChangePrimaryDc][become backup]{}, {}", clusterId, shardId, newPrimaryDc);
-			changePrimaryDcAction = new BecomeBackupAction(dcMetaCache, currentMetaManager, sentinelManager, keyedObjectPool, multiDcService, scheduled);
+			changePrimaryDcAction = new BecomeBackupAction(dcMetaCache, currentMetaManager, sentinelManager, keyedObjectPool, multiDcService, scheduled, executors);
 		}
 		return changePrimaryDcAction.changePrimaryDc(clusterId, shardId, newPrimaryDc);
 	}
 
 	private NewMasterChooser createNewMasterChooser() {
-		return new FirstNewMasterChooser(keyedObjectPool, scheduled);
+		return new FirstNewMasterChooser(keyedObjectPool, scheduled, executors);
 	}
 
 }

@@ -25,6 +25,7 @@ import javax.servlet.ServletException;
 @Configuration
 @SuppressWarnings({ "rawtypes", "unchecked" })
 public class SSOConfigurations {
+
     public static final String KEY_CAS_REGISTER_SERVER_NAME = "cas.register.server.name";
     public static final String KEY_CAS_SERVER_LOGIN_URL = "cas.server.login.url";
     public static final String KEY_CAS_SERVER_URL_PREFIX = "cas.server.url.prefix";
@@ -34,7 +35,7 @@ public class SSOConfigurations {
 
     private Config config = Config.DEFAULT;
 
-	@Bean
+    @Bean
     public ServletListenerRegistrationBean redisAppSettingListener() {
         ServletListenerRegistrationBean redisAppSettingListener = new ServletListenerRegistrationBean();
         redisAppSettingListener.setListener(listener("org.jasig.cas.client.credis.CRedisAppSettingListner"));
@@ -67,10 +68,9 @@ public class SSOConfigurations {
         filterInitParam.put("casServerLoginUrl", config.get(KEY_CAS_SERVER_LOGIN_URL));
         //we don't want to use session to store login information, since we will be deployed to a cluster, not a single instance
         filterInitParam.put("useSession", "false");
-        filterInitParam.put("/api.*", "exclude");
 
         casFilter.setInitParameters(filterInitParam);
-        casFilter.setFilter(filter("com.ctrip.framework.apollo.sso.filter.ApolloAuthenticationFilter"));
+        casFilter.setFilter(new XPipeFilter());
         casFilter.addUrlPatterns("/*");
 
         return casFilter;
@@ -100,15 +100,15 @@ public class SSOConfigurations {
 
     @Bean
     public FilterRegistrationBean assertionHolder() {
+
         FilterRegistrationBean assertionHolderFilter = new FilterRegistrationBean();
 
         Map<String, String> filterInitParam = Maps.newHashMap();
-        filterInitParam.put("/api.*", "exclude");
 
         assertionHolderFilter.setInitParameters(filterInitParam);
 
         assertionHolderFilter
-            .setFilter(filter("com.ctrip.framework.apollo.sso.filter.ApolloAssertionThreadLocalFilter"));
+            .setFilter(new XPipeAssertionThreadLocalFilter());
         assertionHolderFilter.addUrlPatterns("/*");
 
         return assertionHolderFilter;

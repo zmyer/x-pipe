@@ -17,6 +17,7 @@ import org.apache.commons.io.IOUtils;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -64,7 +65,8 @@ public abstract class AbstractIntegratedTest extends AbstractRedisTest {
 
 	private Set<RedisMeta> allRedisStarted = new HashSet<>();
 
-	static {
+	@BeforeClass
+	public static void beforereAbstractIntegratedTestClass(){
 		List<File> result = new LinkedList<>();
 		cleanLog(new File(logDir), result);
 		Logger logger = LoggerFactory.getLogger(AbstractIntegratedTest.class);
@@ -180,7 +182,7 @@ public abstract class AbstractIntegratedTest extends AbstractRedisTest {
 		return metaService;
 	}
 
-	protected void startRedis(DcMeta dcMeta, RedisMeta redisMeta) throws ExecuteException, IOException {
+	protected void startRedis(RedisMeta redisMeta, RedisMeta redisMaster) throws IOException {
 
 		stopServerListeningPort(redisMeta.getPort());
 
@@ -194,31 +196,35 @@ public abstract class AbstractIntegratedTest extends AbstractRedisTest {
 		FileUtils.forceMkdir(dataDir);
 		FileUtils.forceMkdir(logDir);
 
-		File file = createRedisConfigFile(dcMeta, redisMeta, redisDir, dataDir);
+		File file = createRedisConfigFile(redisMeta, redisMaster, redisDir, dataDir);
 		executeScript("start_redis.sh", file.getAbsolutePath(),
 				new File(logDir, String.format("%d.log", redisMeta.getPort())).getAbsolutePath());
 
 		allRedisStarted.add(redisMeta);
 	}
 
-	protected File createRedisConfigFile(DcMeta dcMeta, RedisMeta redisMeta, File destDir, File dataDir)
+	protected void startRedis(RedisMeta redisMeta) throws IOException {
+
+		startRedis(redisMeta, null);
+	}
+
+	protected File createRedisConfigFile(RedisMeta redis, RedisMeta master, File destDir, File dataDir)
 			throws IOException {
 
-		String conf = getRedisConfig(dcMeta, redisMeta, dataDir);
+		String conf = getRedisConfig(redis, master, dataDir);
 
-		File dstFile = new File(destDir, redisMeta.getPort() + ".conf");
+		File dstFile = new File(destDir, redis.getPort() + ".conf");
 		try (FileOutputStream fous = new FileOutputStream(dstFile)) {
 			IOUtils.write(conf, fous);
 		}
 		return dstFile;
 	}
 
-	protected String getRedisConfig(DcMeta dcMeta, RedisMeta redisMeta, File dataDir) throws IOException {
+	protected String getRedisConfig(RedisMeta redis, RedisMeta master, File dataDir) throws IOException {
 
 		StringBuilder sb = new StringBuilder();
 
 		try (InputStream ins_template = getClass().getClassLoader().getResourceAsStream(getRedisTemplate())) {
-			int metaServerPort = dcMeta.getMetaServers().get(0).getPort();
 
 			for (String line : IOUtils.readLines(ins_template)) {
 
@@ -235,34 +241,27 @@ public abstract class AbstractIntegratedTest extends AbstractRedisTest {
 
 				String confKey = confs[0];
 				if (confKey.equalsIgnoreCase("port")) {
-					line = String.format("port %d", redisMeta.getPort());
+					line = String.format("port %d", redis.getPort());
 				}
 				if (confKey.equalsIgnoreCase("dir")) {
 					line = String.format("dir %s", dataDir.getAbsolutePath());
-				}
-				if (confKey.equalsIgnoreCase("meta-server-url")) {
-					line = String.format("meta-server-url http://localhost:%d/", metaServerPort);
-				}
-				if (confKey.equalsIgnoreCase("cluster-name")) {
-					line = String.format("cluster-name %s", redisMeta.parent().parent().getId());
-				}
-				if (confKey.equalsIgnoreCase("shard-name")) {
-					line = String.format("shard-name %s", redisMeta.parent().getId());
 				}
 				sb.append(line);
 				sb.append("\r\n");
 			}
 		}
-		
+
+		if(master != null){
+			sb.append(String.format("slaveof %s %d\r\n", master.getIp(), master.getPort()));
+		}
 		if(diskless()){
 			sb.append("repl-diskless-sync yes\r\n");
 			sb.append("repl-diskless-sync-delay " +integratedProperties.getProperty("redis.repl.diskless.delay", "1") + "\r\n");
 		}else{
 			sb.append("repl-diskless-sync no\r\n");
 		}
-		
+		endPrepareRedisConfig(redis, sb);
 
-		endPrepareRedisConfig(redisMeta, sb);
 		return sb.toString();
 	}
 
@@ -287,8 +286,6 @@ public abstract class AbstractIntegratedTest extends AbstractRedisTest {
 	public String getShardId() {
 		return shardId;
 	}
-
-	protected abstract String getRedisTemplate();
 
 	protected void sendMesssageToMasterAndTest(RedisMeta redisMaster, List<RedisMeta> slaves){
 		sendMesssageToMasterAndTest(defaultTestMessageCount, redisMaster, slaves);
@@ -405,12 +402,12 @@ public abstract class AbstractIntegratedTest extends AbstractRedisTest {
 
 	protected void xslaveof(String masterIp, Integer masterPort, RedisMeta ... slaves) throws Exception {
 		
-		new XSlaveofJob(Lists.newArrayList(slaves), masterIp, masterPort, getXpipeNettyClientKeyedObjectPool(), scheduled).execute().sync();
+		new XSlaveofJob(Lists.newArrayList(slaves), masterIp, masterPort, getXpipeNettyClientKeyedObjectPool(), scheduled, executors).execute().sync();
 	}
 
 	protected void xslaveof(String masterIp, Integer masterPort, List<RedisMeta> slaves) throws Exception {
 		
-		new XSlaveofJob(slaves, masterIp, masterPort, getXpipeNettyClientKeyedObjectPool(), scheduled).execute().sync();
+		new XSlaveofJob(slaves, masterIp, masterPort, getXpipeNettyClientKeyedObjectPool(), scheduled, executors).execute().sync();
 	}
 
 
@@ -418,5 +415,10 @@ public abstract class AbstractIntegratedTest extends AbstractRedisTest {
 	protected boolean deleteTestDirAfterTest() {
 		return false;
 	}
+
+	protected String getRedisTemplate() {
+		return "conf/redis_raw.conf";
+	}
+
 
 }

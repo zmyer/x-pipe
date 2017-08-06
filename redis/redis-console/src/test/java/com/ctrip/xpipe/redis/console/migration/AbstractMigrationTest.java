@@ -47,6 +47,7 @@ public class AbstractMigrationTest extends AbstractConsoleIntegrationTest {
 
 					@Override
 					protected void doExecute() throws Exception {
+						logger.info("[doExecute][set result]{}, {}, {}", cluster, shard, future());
 						future().setSuccess(
 								new PrimaryDcCheckMessage(PRIMARY_DC_CHECK_RESULT.SUCCESS, "Check success"));
 					}
@@ -154,7 +155,7 @@ public class AbstractMigrationTest extends AbstractConsoleIntegrationTest {
 					@Override
 					protected void doExecute() throws Exception {
 						future().setSuccess(
-								new PrimaryDcChangeMessage(PRIMARY_DC_CHANGE_RESULT.SUCCESS, "New success"));
+								new PrimaryDcChangeMessage("New success", "127.0.0.1", randomPort()));
 					}
 
 					@Override

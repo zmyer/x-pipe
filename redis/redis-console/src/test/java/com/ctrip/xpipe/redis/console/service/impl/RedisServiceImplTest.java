@@ -1,8 +1,10 @@
 package com.ctrip.xpipe.redis.console.service.impl;
 
-import com.ctrip.xpipe.redis.console.constant.XpipeConsoleConstant;
+import com.ctrip.xpipe.redis.console.constant.XPipeConsoleConstant;
 import com.ctrip.xpipe.redis.console.model.RedisTbl;
 import com.ctrip.xpipe.redis.console.model.ShardModel;
+import com.ctrip.xpipe.redis.console.service.KeeperAdvancedService;
+import com.ctrip.xpipe.redis.console.service.KeeperBasicInfo;
 import com.ctrip.xpipe.redis.console.service.exception.ResourceNotFoundException;
 import com.google.common.collect.Lists;
 import org.junit.Assert;
@@ -13,7 +15,10 @@ import org.unidal.dal.jdbc.DalException;
 import org.unidal.tuple.Pair;
 
 import java.io.IOException;
+import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 
@@ -22,33 +27,82 @@ import java.util.stream.Stream;
  *         <p>
  *         Mar 31, 2017
  */
-public class RedisServiceImplTest extends AbstractServiceImplTest{
-
+public class RedisServiceImplTest extends AbstractServiceImplTest {
 
     @Autowired
     private RedisServiceImpl redisService;
+
+    @Autowired
+    private KeeperAdvancedService keeperAdvancedService;
 
     private String dcName;
     private String shardName;
 
     @Before
-    public void beforeRedisServiceImplTest(){
+    public void beforeRedisServiceImplTest() {
         dcName = dcNames[0];
         shardName = shardNames[0];
 
     }
 
     @Test
-    public void testInsert() throws ResourceNotFoundException, DalException {
+    public void testFindAllRedisesByDcClusterName(){
+
+        List<RedisTbl> dc1 = redisService.findAllRedisesByDcClusterName(dcNames[0], clusterName);
+
+        Assert.assertTrue(dc1.size() > 0);
+
+        Set<Long> dc1Ids = new HashSet<>();
+        dc1.forEach(redisTbl -> dc1Ids.add(redisTbl.getId()));
+
+        List<RedisTbl> dc2 = redisService.findAllRedisesByDcClusterName(dcNames[1], clusterName);
+        Assert.assertTrue(dc2.size() > 0);
+
+        dc2.forEach(redisTbl -> Assert.assertFalse(dc1Ids.contains(redisTbl.getId())));
+    }
+
+    @Test
+    public void testInsertRedises() throws ResourceNotFoundException, DalException {
 
         List<RedisTbl> redises = redisService.findRedisesByDcClusterShard(dcName, clusterName, shardName);
 
-        redisService.insertRedises(redises.get(0).getDcClusterShardId(), new Pair<>("127.0.0.1", randomInt()), new Pair<>("127.0.0.1", randomInt()));
+        redisService.insertInstancesToDb(redises.get(0).getDcClusterShardId(), XPipeConsoleConstant.ROLE_REDIS, new Pair<>("127.0.0.1", randomInt()), new Pair<>("127.0.0.1", randomInt()));
 
         List<RedisTbl> newRedises = redisService.findRedisesByDcClusterShard(dcName, clusterName, shardName);
 
         Assert.assertEquals(redises.size() + 2, newRedises.size());
 
+    }
+
+    @Test
+    public void testInsertKeepers() throws ResourceNotFoundException, DalException {
+
+        redisService.deleteKeepers(dcName, clusterName, shardName);
+
+        List<KeeperBasicInfo> newKeepers = keeperAdvancedService.findBestKeepers(dcName);
+
+        Assert.assertEquals(2, newKeepers.size());
+
+        redisService.insertKeepers(dcName, clusterName, shardName, newKeepers);
+
+        List<RedisTbl> result = redisService.findKeepersByDcClusterShard(dcName, clusterName, shardName);
+
+        result.forEach(redisTbl -> Assert.assertTrue(redisTbl.getKeepercontainerId() != 0));
+
+        Assert.assertEquals(newKeepers.size(), result.size());
+
+    }
+
+    @Test
+    public void testDeleteKeepers() throws ResourceNotFoundException, DalException {
+
+        List<RedisTbl> keepers = redisService.findKeepersByDcClusterShard(dcName, clusterName, shardName);
+        Assert.assertTrue(keepers.size() > 0);
+
+        redisService.deleteKeepers(dcName, clusterName, shardName);
+
+        keepers = redisService.findKeepersByDcClusterShard(dcName, clusterName, shardName);
+        Assert.assertEquals(0, keepers.size());
     }
 
     @Test
@@ -79,7 +133,7 @@ public class RedisServiceImplTest extends AbstractServiceImplTest{
             @Override
             public void accept(RedisTbl redisTbl) {
                 logger.debug("[keeper]{}", redisTbl);
-                Assert.assertEquals(XpipeConsoleConstant.ROLE_KEEPER, redisTbl.getRedisRole());
+                Assert.assertEquals(XPipeConsoleConstant.ROLE_KEEPER, redisTbl.getRedisRole());
             }
         });
 
@@ -87,57 +141,26 @@ public class RedisServiceImplTest extends AbstractServiceImplTest{
             @Override
             public void accept(RedisTbl redisTbl) {
                 logger.debug("[redis]{}", redisTbl);
-                Assert.assertEquals(XpipeConsoleConstant.ROLE_REDIS, redisTbl.getRedisRole());
+                Assert.assertEquals(XPipeConsoleConstant.ROLE_REDIS, redisTbl.getRedisRole());
             }
         });
 
     }
 
     @Test
-    public void testBatchUpdate() throws ResourceNotFoundException {
-
-        List<RedisTbl> allByDcClusterShard = redisService.findAllByDcClusterShard(dcName, clusterName, shardName);
-        checkAllInstances(allByDcClusterShard);
-
-        for (RedisTbl redisTbl : allByDcClusterShard){
-            if(redisTbl.getRedisRole().equalsIgnoreCase(XpipeConsoleConstant.ROLE_REDIS)){
-                redisTbl.setMaster(!redisTbl.isMaster());
-            }
-        }
-
-        redisService.batchUpdate(allByDcClusterShard);
-
-        List<RedisTbl> newAll = redisService.findAllByDcClusterShard(dcName, clusterName, shardName);
-        checkAllInstances(newAll);
-
-        for(RedisTbl newRedis : newAll){
-            for(RedisTbl oldRedis : allByDcClusterShard){
-                if(newRedis.getId() == oldRedis.getId()){
-                    logger.info("old:{}", oldRedis);
-                    logger.info("new:{}", newRedis);
-                    Assert.assertEquals(oldRedis.isMaster(), newRedis.isMaster());
-                }
-            }
-        }
-
-    }
-
-
-    @Test
     public void testUpdateRedises() throws IOException, ResourceNotFoundException {
-
 
         List<RedisTbl> allByDcClusterShard = redisService.findAllByDcClusterShard(dcName, clusterName, shardName);
         checkAllInstances(allByDcClusterShard);
         boolean firstSlave = true;
         RedisTbl newMaster = null;
 
-        for(RedisTbl redisTbl : allByDcClusterShard){
-            if(redisTbl.getRedisRole().equals(XpipeConsoleConstant.ROLE_REDIS)){
+        for (RedisTbl redisTbl : allByDcClusterShard) {
+            if (redisTbl.getRedisRole().equals(XPipeConsoleConstant.ROLE_REDIS)) {
 
-                if(redisTbl.isMaster()){
+                if (redisTbl.isMaster()) {
                     redisTbl.setMaster(false);
-                }else if(!redisTbl.isMaster() && firstSlave){
+                } else if (!redisTbl.isMaster() && firstSlave) {
                     redisTbl.setMaster(true);
                     newMaster = redisTbl;
                     firstSlave = false;
@@ -156,7 +179,7 @@ public class RedisServiceImplTest extends AbstractServiceImplTest{
 
         Stream<RedisTbl> redisTblStream = allByDcClusterShard.stream().filter(instance -> instance.isMaster());
 
-        RedisTbl  currentMaster = redisTblStream.findFirst().get();
+        RedisTbl currentMaster = redisTblStream.findFirst().get();
         Assert.assertEquals(newMaster.getId(), currentMaster.getId());
 
     }
@@ -167,9 +190,9 @@ public class RedisServiceImplTest extends AbstractServiceImplTest{
 
         int masterCount = 0;
 
-        for(RedisTbl redisTbl : allByDcClusterShard){
+        for (RedisTbl redisTbl : allByDcClusterShard) {
             logger.debug("{}", redisTbl);
-            if(redisTbl.isMaster()){
+            if (redisTbl.isMaster()) {
                 masterCount++;
             }
         }
@@ -178,7 +201,7 @@ public class RedisServiceImplTest extends AbstractServiceImplTest{
     }
 
     @Test
-    public void testSub(){
+    public void testSub() {
 
         List<Pair<String, Integer>> first = Lists.newArrayList(
                 Pair.from("127.0.0.1", 1111),
@@ -197,7 +220,7 @@ public class RedisServiceImplTest extends AbstractServiceImplTest{
     }
 
     @Test
-    public void testInter(){
+    public void testInter() {
 
         List<Pair<String, Integer>> first = Lists.newArrayList(
                 Pair.from("127.0.0.1", 1111),

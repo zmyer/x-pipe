@@ -3,8 +3,8 @@ package com.ctrip.xpipe.redis.meta.server.multidc;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
+import com.ctrip.xpipe.spring.AbstractSpringConfigContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -18,7 +18,8 @@ import com.ctrip.xpipe.redis.core.metaserver.MetaServerMultiDcServiceManager;
 import com.ctrip.xpipe.redis.meta.server.MetaServerStateChangeHandler;
 import com.ctrip.xpipe.redis.meta.server.config.MetaServerConfig;
 import com.ctrip.xpipe.redis.meta.server.meta.DcMetaCache;
-import com.ctrip.xpipe.utils.XpipeThreadFactory;
+
+import javax.annotation.Resource;
 
 /**
  * @author wenchao.meng
@@ -32,7 +33,8 @@ public class MultiDcNotifier implements MetaServerStateChangeHandler {
 	@Autowired
 	private MetaServerConfig metaServerConfig;
 
-	private ExecutorService executors = Executors.newCachedThreadPool(XpipeThreadFactory.create("MultiDcNotifier"));
+	@Resource( name = AbstractSpringConfigContext.GLOBAL_EXECUTOR )
+	private ExecutorService executors;
 
 	@Autowired
 	private MetaServerMultiDcServiceManager metaServerMultiDcServiceManager;
@@ -41,7 +43,7 @@ public class MultiDcNotifier implements MetaServerStateChangeHandler {
 	public DcMetaCache dcMetaCache;
 
 	@Override
-	public void keeperActiveElected(String clusterId, String shardId, KeeperMeta activeKeeper) throws Exception {
+	public void keeperActiveElected(String clusterId, String shardId, KeeperMeta activeKeeper) {
 
 		if (!dcMetaCache.isCurrentDcPrimary(clusterId, shardId)) {
 			logger.info("[keeperActiveElected][current dc backup, do nothing]{}, {}", clusterId, shardId, activeKeeper);

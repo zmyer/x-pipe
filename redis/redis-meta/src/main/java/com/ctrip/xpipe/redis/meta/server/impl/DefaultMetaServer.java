@@ -5,6 +5,7 @@ import java.util.concurrent.ScheduledExecutorService;
 
 import javax.annotation.Resource;
 
+import com.ctrip.xpipe.spring.AbstractSpringConfigContext;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.unidal.tuple.Pair;
@@ -39,7 +40,7 @@ public class DefaultMetaServer extends DefaultCurrentClusterServer implements Me
 	@Resource(name = MetaServerContextConfig.CLIENT_POOL)
 	private XpipeNettyClientKeyedObjectPool keyedObjectPool;
 
-	@Resource(name = MetaServerContextConfig.SCHEDULED_EXECUTOR)
+	@Resource(name = AbstractSpringConfigContext.SCHEDULED_EXECUTOR)
 	private ScheduledExecutorService scheduled;
 
 	@SuppressWarnings("unused")
@@ -113,7 +114,6 @@ public class DefaultMetaServer extends DefaultCurrentClusterServer implements Me
 		super.doSlotDelete(slotId);
 
 		currentMetaManager.deleteSlot(slotId);
-		;
 	}
 
 	@Override
@@ -154,8 +154,7 @@ public class DefaultMetaServer extends DefaultCurrentClusterServer implements Me
 	}
 
 	@Override
-	public void updateUpstream(String clusterId, String shardId, String ip, int port, ForwardInfo forwardInfo)
-			throws Exception {
+	public void updateUpstream(String clusterId, String shardId, String ip, int port, ForwardInfo forwardInfo) {
 
 		if (!dcMetaCache.isCurrentDcPrimary(clusterId, shardId)) {
 

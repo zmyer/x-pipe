@@ -17,14 +17,19 @@ public class MigrationSuccessState extends AbstractMigrationState {
 	}
 
 	@Override
-	public void action() {
+	protected void doRollback() {
+		throw new  UnsupportedOperationException("already success, can not rollback");
+	}
+
+	@Override
+	public void doAction() {
 		getHolder().update(getHolder(), getHolder());
 	}
 
 	@Override
 	public void refresh() {
 		// Nothing to do
-		logger.debug("[MigrationSuccess]{}", getHolder().getCurrentCluster().getClusterName());
+		logger.debug("[MigrationSuccess]{}", getHolder().clusterName());
 	}
 
 }

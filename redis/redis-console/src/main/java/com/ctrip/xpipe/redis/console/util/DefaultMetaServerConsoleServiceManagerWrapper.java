@@ -4,11 +4,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-import com.ctrip.xpipe.redis.console.config.DefaultConsoleConfig;
+import com.ctrip.xpipe.redis.console.config.impl.DefaultConsoleConfig;
 import com.ctrip.xpipe.redis.core.metaserver.impl.DefaultMetaServerConsoleServiceManager;
 import com.ctrip.xpipe.api.codec.Codec;
 import com.ctrip.xpipe.redis.console.config.ConsoleConfig;
-import com.ctrip.xpipe.redis.console.constant.XpipeConsoleConstant;
+import com.ctrip.xpipe.redis.console.constant.XPipeConsoleConstant;
 import com.ctrip.xpipe.redis.console.exception.ServerException;
 import com.ctrip.xpipe.redis.core.metaserver.MetaServerConsoleService;
 import com.ctrip.xpipe.redis.core.metaserver.MetaServerConsoleServiceManager;
@@ -22,6 +22,7 @@ public class DefaultMetaServerConsoleServiceManagerWrapper implements MetaServer
 	private Codec codec = Codec.DEFAULT;
 
 	private ConsoleConfig config = new DefaultConsoleConfig();
+
 	private MetaServerConsoleServiceManager metaServerConsoleServiceManager = new DefaultMetaServerConsoleServiceManager();
 	
 	
@@ -48,7 +49,7 @@ public class DefaultMetaServerConsoleServiceManagerWrapper implements MetaServer
 				if(null != metaservers.get(dcName)) {
 					result.add(metaservers.get(dcName));
 				} else {
-					result.add(XpipeConsoleConstant.DEFAULT_ADDRESS);
+					result.add(XPipeConsoleConstant.DEFAULT_ADDRESS);
 				}
 			}
 		}
@@ -63,7 +64,7 @@ public class DefaultMetaServerConsoleServiceManagerWrapper implements MetaServer
 				return metaservers.get(dcName);
 			}
 		}
-		return XpipeConsoleConstant.DEFAULT_ADDRESS;
+		return XPipeConsoleConstant.DEFAULT_ADDRESS;
 		
 	}
 	

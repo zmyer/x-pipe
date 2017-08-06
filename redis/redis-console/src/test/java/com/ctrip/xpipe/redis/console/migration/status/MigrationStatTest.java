@@ -2,6 +2,7 @@ package com.ctrip.xpipe.redis.console.migration.status;
 
 import com.ctrip.xpipe.redis.console.AbstractConsoleTest;
 import com.ctrip.xpipe.redis.console.migration.model.MigrationCluster;
+import com.ctrip.xpipe.redis.console.migration.model.MigrationEvent;
 import com.ctrip.xpipe.redis.console.migration.model.MigrationShard;
 import com.ctrip.xpipe.redis.console.migration.model.impl.DefaultMigrationCluster;
 import com.ctrip.xpipe.redis.console.migration.status.migration.MigrationMigratingState;
@@ -37,6 +38,8 @@ public class MigrationStatTest extends AbstractConsoleTest {
     @Mock
     private DcService mockedDcService;
     @Mock
+    private MigrationEvent migrationEvent;
+    @Mock
     private ClusterService mockedClusterService;
     @Mock
     private ShardService mockedShardService;
@@ -50,8 +53,9 @@ public class MigrationStatTest extends AbstractConsoleTest {
 
     @Before
     public void setUp() {
+
         prepareData();
-        migrationCluster = new DefaultMigrationCluster(mockedMigrationCluster, mockedDcService, mockedClusterService,
+        migrationCluster = new DefaultMigrationCluster(executors, migrationEvent, mockedMigrationCluster, mockedDcService, mockedClusterService,
                 mockedShardService, mockedRedisService, mockedMigrationService);
         migrationCluster.addNewMigrationShard(mockedMigrationShard);
     }
@@ -90,8 +94,8 @@ public class MigrationStatTest extends AbstractConsoleTest {
         shards.add((new ShardTbl()).setId(1).setClusterId(1).setShardName("test-shard"));
         when(mockedShardService.findAllByClusterName("test-cluster")).thenReturn(shards);
         List<DcTbl> dcs = new LinkedList<>();
-        dcs.add((new DcTbl()).setId(1).setDcName("A"));
-        dcs.add((new DcTbl()).setId(2).setDcName("B"));
+        dcs.add((new DcTbl()).setId(1).setDcName("ADC"));
+        dcs.add((new DcTbl()).setId(2).setDcName("BDC"));
         when(mockedDcService.findClusterRelatedDc("test-cluster")).thenReturn(dcs);
     }
 

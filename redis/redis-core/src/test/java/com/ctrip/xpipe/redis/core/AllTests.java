@@ -1,5 +1,8 @@
 package com.ctrip.xpipe.redis.core;
 
+import com.ctrip.xpipe.redis.core.meta.QuorumConfigTest;
+import com.ctrip.xpipe.redis.core.protocal.cmd.*;
+import com.ctrip.xpipe.redis.core.protocal.pojo.MasterRoleTest;
 import org.junit.runner.RunWith;
 import org.junit.runners.Suite;
 import org.junit.runners.Suite.SuiteClasses;
@@ -11,8 +14,6 @@ import com.ctrip.xpipe.redis.core.meta.comparator.DcMetaComparatorTest;
 import com.ctrip.xpipe.redis.core.meta.comparator.ShardMetaComparatorTest;
 import com.ctrip.xpipe.redis.core.meta.impl.DefaultXpipeMetaManagerTest;
 import com.ctrip.xpipe.redis.core.metaserver.META_SERVER_SERVICETest;
-import com.ctrip.xpipe.redis.core.protocal.cmd.DefaultPsyncTest;
-import com.ctrip.xpipe.redis.core.protocal.cmd.RoleCommandTest;
 import com.ctrip.xpipe.redis.core.protocal.protocal.ArrayParserTest;
 import com.ctrip.xpipe.redis.core.protocal.protocal.BulkStringEofJuderManagerTest;
 import com.ctrip.xpipe.redis.core.protocal.protocal.BulkStringEofJudgerTest;
@@ -28,6 +29,7 @@ import com.ctrip.xpipe.redis.core.store.ReplicationStoreMetaTest;
  */
 @RunWith(Suite.class)
 @SuiteClasses({
+	QuorumConfigTest.class,
 	DefaultRunIdGeneratorTest.class,
 	ArrayParserTest.class,
 	BulkStringParserTest.class,
@@ -40,12 +42,16 @@ import com.ctrip.xpipe.redis.core.store.ReplicationStoreMetaTest;
 	ClusterMetaComparatorTest.class,
 	ShardMetaComparatorTest.class,
 	RoleCommandTest.class,
+	MasterRoleTest.class,
 	DcInfoTest.class,
 	DefaultPsyncTest.class,
 	META_SERVER_SERVICETest.class,
 	BulkStringEofJudgerTest.class,
 	BulkStringEofJuderManagerTest.class,
-	RoleCommandTest.class
+	RoleCommandTest.class,
+	PingCommandTest.class,
+	RedisCommandTest.class,
+	DefaultSlaveOfCommandTest.class
 })
 public class AllTests {
 

@@ -34,14 +34,14 @@ public class DefaultRedisMasterMonitor extends BaseSampleMonitor<InstanceRedisMa
     }
 
     @Override
-    public void startSample(BaseSamplePlan<InstanceRedisMasterResult> rawPlan) throws Exception {
+    public void startSample(BaseSamplePlan<InstanceRedisMasterResult> rawPlan) throws SampleException {
 
         RedisMasterSamplePlan plan = (RedisMasterSamplePlan) rawPlan;
         long startNanoTime = recordSample(plan);
         try{
             sampleRole(startNanoTime, plan);
         }catch (Exception e){
-            addInstanceResult(startNanoTime, plan.getMasterHost(), plan.getMasterPort(), Server.SERVER_ROLE.UNKNOWN.toString());
+            addInstanceSuccess(startNanoTime, plan.getMasterHost(), plan.getMasterPort(), Server.SERVER_ROLE.UNKNOWN.toString());
             log.error("[startSample]" + plan, e);
         }
     }
@@ -54,12 +54,12 @@ public class DefaultRedisMasterMonitor extends BaseSampleMonitor<InstanceRedisMa
 
             @Override
             public void role(String role) {
-                addInstanceResult(startNanoTime, plan.getMasterHost(), plan.getMasterPort(), role);
+                addInstanceSuccess(startNanoTime, plan.getMasterHost(), plan.getMasterPort(), role);
             }
 
             @Override
-            public void fail(Exception e) {
-                addInstanceResult(startNanoTime, plan.getMasterHost(), plan.getMasterPort(), Server.SERVER_ROLE.UNKNOWN.toString());
+            public void fail(Throwable e) {
+                addInstanceSuccess(startNanoTime, plan.getMasterHost(), plan.getMasterPort(), Server.SERVER_ROLE.UNKNOWN.toString());
             }
         });
     }
@@ -91,6 +91,16 @@ public class DefaultRedisMasterMonitor extends BaseSampleMonitor<InstanceRedisMa
             }
         }
         return plans.values();
+    }
+
+    @Override
+    protected void addRedis(BaseSamplePlan<InstanceRedisMasterResult> plan, String dcId, RedisMeta redisMeta) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    protected BaseSamplePlan<InstanceRedisMasterResult> createPlan(String clusterId, String shardId) {
+        throw new UnsupportedOperationException();
     }
 
     private boolean isActiveDc(String currentDc, String clusterActiveDc) {

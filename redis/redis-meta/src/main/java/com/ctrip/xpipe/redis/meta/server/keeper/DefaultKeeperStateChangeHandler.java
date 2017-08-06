@@ -3,10 +3,12 @@ package com.ctrip.xpipe.redis.meta.server.keeper;
 import java.net.InetSocketAddress;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
 
 import javax.annotation.Resource;
 
+import com.ctrip.xpipe.spring.AbstractSpringConfigContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -40,9 +42,12 @@ public class DefaultKeeperStateChangeHandler extends AbstractLifecycle implement
 	@Resource(name = MetaServerContextConfig.CLIENT_POOL)
 	private SimpleKeyedObjectPool<InetSocketAddress, NettyClient> clientPool;
 
-	@Resource(name = MetaServerContextConfig.SCHEDULED_EXECUTOR)
+	@Resource(name = AbstractSpringConfigContext.SCHEDULED_EXECUTOR)
 	private ScheduledExecutorService scheduled;
-	
+
+	@Resource(name = AbstractSpringConfigContext.GLOBAL_EXECUTOR)
+	private Executor executors;
+
 	private KeyedOneThreadTaskExecutor<Pair<String, String>> keyedOneThreadTaskExecutor;
 
 	@Autowired
@@ -54,7 +59,7 @@ public class DefaultKeeperStateChangeHandler extends AbstractLifecycle implement
 	@Override
 	protected void doInitialize() throws Exception {
 		super.doInitialize();
-		keyedOneThreadTaskExecutor = new KeyedOneThreadTaskExecutor<>("KeeperStateChangeHandler");
+		keyedOneThreadTaskExecutor = new KeyedOneThreadTaskExecutor<>(executors);
 	}
 	
 	@Override
@@ -76,11 +81,11 @@ public class DefaultKeeperStateChangeHandler extends AbstractLifecycle implement
 		List<KeeperMeta> keepers = new LinkedList<>();
 		keepers.add(activeKeeper);
 		
-		keyedOneThreadTaskExecutor.execute(new Pair<String, String>(clusterId, shardId), new KeeperStateChangeJob(keepers, newMaster, clientPool, scheduled));
+		keyedOneThreadTaskExecutor.execute(new Pair<String, String>(clusterId, shardId), new KeeperStateChangeJob(keepers, newMaster, clientPool, scheduled, executors));
 	}
 
 	@Override
-	public void keeperActiveElected(String clusterId, String shardId, KeeperMeta activeKeeper) throws Exception {
+	public void keeperActiveElected(String clusterId, String shardId, KeeperMeta activeKeeper) {
 
 		logger.info("[keeperActiveElected]{},{},{}", clusterId, shardId, activeKeeper);
 
@@ -90,13 +95,13 @@ public class DefaultKeeperStateChangeHandler extends AbstractLifecycle implement
 			return;
 		}
 		Pair<String, Integer> activeKeeperMaster = currentMetaManager.getKeeperMaster(clusterId, shardId);
-		KeeperStateChangeJob keeperStateChangeJob = new KeeperStateChangeJob(keepers, activeKeeperMaster, clientPool, scheduled);
+		KeeperStateChangeJob keeperStateChangeJob = new KeeperStateChangeJob(keepers, activeKeeperMaster, clientPool, scheduled, executors);
 
 		if (!dcMetaCache.isCurrentDcPrimary(clusterId, shardId)) {
 			List<RedisMeta> slaves = dcMetaCache.getShardRedises(clusterId, shardId);
 			logger.info("[keeperActiveElected][current dc backup, set slave to new keeper]{},{}", clusterId, shardId,
 					slaves);
-			keeperStateChangeJob.setActiveSuccessCommand(new DefaultSlaveOfJob(slaves, activeKeeper.getIp(), activeKeeper.getPort(), clientPool, scheduled));
+			keeperStateChangeJob.setActiveSuccessCommand(new DefaultSlaveOfJob(slaves, activeKeeper.getIp(), activeKeeper.getPort(), clientPool, scheduled, executors));
 		}
 		
 		keyedOneThreadTaskExecutor.execute(new Pair<String, String>(clusterId, shardId), keeperStateChangeJob);
@@ -105,7 +110,7 @@ public class DefaultKeeperStateChangeHandler extends AbstractLifecycle implement
 	@Override
 	protected void doDispose() throws Exception {
 		
-		keyedOneThreadTaskExecutor.destroy();;
+		keyedOneThreadTaskExecutor.destroy();
 		super.doDispose();
 	}
 	
@@ -123,5 +128,9 @@ public class DefaultKeeperStateChangeHandler extends AbstractLifecycle implement
 	
 	public void setScheduled(ScheduledExecutorService scheduled) {
 		this.scheduled = scheduled;
+	}
+
+	public void setExecutors(Executor executors) {
+		this.executors = executors;
 	}
 }

@@ -1,5 +1,10 @@
 package com.ctrip.xpipe;
 
+import com.ctrip.xpipe.api.sso.SsoConfigTest;
+import com.ctrip.xpipe.concurrent.DefaultExecutorFactoryTest;
+import com.ctrip.xpipe.concurrent.FinalStateSetterManagerTest;
+import com.ctrip.xpipe.tuple.PairTest;
+import com.ctrip.xpipe.utils.*;
 import org.junit.runner.RunWith;
 import org.junit.runners.Suite;
 import org.junit.runners.Suite.SuiteClasses;
@@ -23,13 +28,6 @@ import com.ctrip.xpipe.payload.ByteArrayOutputStreamPayloadTest;
 import com.ctrip.xpipe.payload.ByteArrayWritableByteChannelTest;
 import com.ctrip.xpipe.pool.XpipeNettyClientKeyedObjectPoolTest;
 import com.ctrip.xpipe.pool.XpipeNettyClientPoolTest;
-import com.ctrip.xpipe.utils.ChannelUtilTest;
-import com.ctrip.xpipe.utils.DefaultControllableFileTest;
-import com.ctrip.xpipe.utils.FileUtilsTest;
-import com.ctrip.xpipe.utils.OffsetNotifierTest;
-import com.ctrip.xpipe.utils.SizeControllableFileTest;
-import com.ctrip.xpipe.utils.StringUtilTest;
-import com.ctrip.xpipe.utils.UrlUtilsTest;
 import com.ctrip.xpipe.zk.impl.TestZkClientTest;
 
 /**
@@ -39,6 +37,7 @@ import com.ctrip.xpipe.zk.impl.TestZkClientTest;
  */
 @RunWith(Suite.class)
 @SuiteClasses({
+	SsoConfigTest.class,
 	XpipeNettyClientPoolTest.class,
 	XpipeNettyClientKeyedObjectPoolTest.class,
 	DefaultCommandFutureTest.class,
@@ -57,6 +56,8 @@ import com.ctrip.xpipe.zk.impl.TestZkClientTest;
 	SequenceCommandChainTest.class,
 	ParallelCommandChainTest.class,
 	FileUtilsTest.class,
+	MathUtilTest.class,
+	FinalStateSetterManagerTest.class,
 	OneThreadTaskExecutorTest.class,
 	TestZkClientTest.class,
 	StringUtilTest.class,
@@ -65,7 +66,9 @@ import com.ctrip.xpipe.zk.impl.TestZkClientTest;
 	KeyedOneThreadTaskExecutorTest.class,
 	DefaultControllableFileTest.class,
 	SizeControllableFileTest.class,
-	UrlUtilsTest.class
+	UrlUtilsTest.class,
+	DefaultExecutorFactoryTest.class,
+	PairTest.class,
 })
 public class AllTests {
 

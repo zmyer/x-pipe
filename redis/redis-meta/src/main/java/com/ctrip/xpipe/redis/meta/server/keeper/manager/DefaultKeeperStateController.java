@@ -1,10 +1,11 @@
 package com.ctrip.xpipe.redis.meta.server.keeper.manager;
 
-import java.net.InetSocketAddress;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
 
 import javax.annotation.Resource;
 
+import com.ctrip.xpipe.spring.AbstractSpringConfigContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -12,17 +13,14 @@ import org.unidal.tuple.Pair;
 
 import com.ctrip.xpipe.api.command.Command;
 import com.ctrip.xpipe.api.lifecycle.TopElement;
-import com.ctrip.xpipe.api.pool.SimpleKeyedObjectPool;
 import com.ctrip.xpipe.concurrent.KeyedOneThreadTaskExecutor;
 import com.ctrip.xpipe.lifecycle.AbstractLifecycle;
-import com.ctrip.xpipe.netty.commands.NettyClient;
 import com.ctrip.xpipe.redis.core.entity.KeeperContainerMeta;
 import com.ctrip.xpipe.redis.core.entity.KeeperTransMeta;
 import com.ctrip.xpipe.redis.core.keeper.container.KeeperContainerService;
 import com.ctrip.xpipe.redis.core.keeper.container.KeeperContainerServiceFactory;
 import com.ctrip.xpipe.redis.meta.server.keeper.KeeperStateController;
 import com.ctrip.xpipe.redis.meta.server.meta.DcMetaCache;
-import com.ctrip.xpipe.redis.meta.server.spring.MetaServerContextConfig;
 
 /**
  * @author wenchao.meng
@@ -41,11 +39,11 @@ public class DefaultKeeperStateController extends AbstractLifecycle implements K
 	
 	@Autowired
 	private DcMetaCache dcMetaCache;
-	
-	@Resource( name = MetaServerContextConfig.CLIENT_POOL )
-	private SimpleKeyedObjectPool<InetSocketAddress, NettyClient> clientPool;
-	
-	@Resource( name = MetaServerContextConfig.SCHEDULED_EXECUTOR)
+
+	@Resource(name = AbstractSpringConfigContext.GLOBAL_EXECUTOR)
+	private Executor executors;
+
+	@Resource( name = AbstractSpringConfigContext.SCHEDULED_EXECUTOR)
 	private ScheduledExecutorService scheduled;
 	
 	private KeyedOneThreadTaskExecutor<Pair<String, String>> shardExecutor;
@@ -53,7 +51,7 @@ public class DefaultKeeperStateController extends AbstractLifecycle implements K
 	@Override
 	protected void doInitialize() throws Exception {
 		super.doInitialize();
-		shardExecutor = new KeyedOneThreadTaskExecutor<>("DefaultKeeperStateController");
+		shardExecutor = new KeyedOneThreadTaskExecutor<>(executors);
 	}
 	
 	@Override
@@ -93,6 +91,9 @@ public class DefaultKeeperStateController extends AbstractLifecycle implements K
 		return keeperContainerService;
 	}
 
+	public void setExecutors(Executor executors) {
+		this.executors = executors;
+	}
 
 	@Override
 	protected void doDispose() throws Exception {

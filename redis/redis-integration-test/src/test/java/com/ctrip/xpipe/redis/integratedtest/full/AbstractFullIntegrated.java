@@ -13,7 +13,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import com.ctrip.xpipe.api.cluster.LeaderElectorManager;
-import com.ctrip.xpipe.foundation.FakeFoundationService;
+import com.ctrip.xpipe.foundation.DefaultFoundationService;
 import com.ctrip.xpipe.redis.core.entity.ClusterMeta;
 import com.ctrip.xpipe.redis.core.entity.DcMeta;
 import com.ctrip.xpipe.redis.core.entity.KeeperMeta;
@@ -36,8 +36,6 @@ import com.ctrip.xpipe.utils.IpUtils;
  */
 public abstract class AbstractFullIntegrated extends AbstractIntegratedTest{
 
-	private String redis_template = "conf/redis_ctrip.conf";
-	
 	private Map<String, DcInfo>  dcs = new ConcurrentHashMap<>();
 	
 	private int consolePort = 8080;
@@ -147,7 +145,7 @@ public abstract class AbstractFullIntegrated extends AbstractIntegratedTest{
 			throw new IllegalStateException("dc not found:" + dc);
 		}
 
-		FakeFoundationService.setDataCenter(dc);
+		DefaultFoundationService.setDataCenter(dc);
 
 		
 		startZkServer(dcMeta.getZkServer());
@@ -169,7 +167,7 @@ public abstract class AbstractFullIntegrated extends AbstractIntegratedTest{
 					startKeeper(keeperMeta, metaService, leaderElectorManager);
 				}
 				for (RedisMeta redisMeta : shardMeta.getRedises()) {
-					startRedis(dcMeta, redisMeta);
+					startRedis(redisMeta);
 				}
 			}
 		}
@@ -250,12 +248,7 @@ public abstract class AbstractFullIntegrated extends AbstractIntegratedTest{
 	public int getConsolePort() {
 		return consolePort;
 	}
-	
-	@Override
-	protected String getRedisTemplate() {
-		return redis_template;
-	}
-	
+
 	@After
 	public void afterAbstractIntegratedTest(){
 		

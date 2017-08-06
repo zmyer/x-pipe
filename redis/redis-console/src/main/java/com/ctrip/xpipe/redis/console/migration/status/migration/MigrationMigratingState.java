@@ -19,16 +19,23 @@ public class MigrationMigratingState extends AbstractMigrationMigratingState {
 	}
 
 	@Override
-	public void action() {
+	protected void doRollback() {
+		throw new UnsupportedOperationException("migrating, please do rollback when partial success");
+	}
+
+	@Override
+	public void doAction() {
+
 		for(final MigrationShard shard : getHolder().getMigrationShards()) {
-			executors.submit(new AbstractExceptionLogTask() {
+
+			executors.execute(new AbstractExceptionLogTask() {
 				@Override
 				public void doRun() {
-					logger.info("[doMigrate][start]{},{}",getHolder().getCurrentCluster().getClusterName(), 
-							shard.getCurrentShard().getShardName());
+					logger.info("[doMigrate][start]{},{}",getHolder().clusterName(),
+							shard.shardName());
 					shard.doMigrate();
-					logger.info("[doMigrate][done]{},{}",getHolder().getCurrentCluster().getClusterName(), 
-							shard.getCurrentShard().getShardName());
+					logger.info("[doMigrate][done]{},{}",getHolder().clusterName(),
+							shard.shardName());
 				}
 			});
 		}

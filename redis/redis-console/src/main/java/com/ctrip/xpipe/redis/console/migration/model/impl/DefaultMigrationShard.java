@@ -1,18 +1,14 @@
 package com.ctrip.xpipe.redis.console.migration.model.impl;
 
-import com.ctrip.xpipe.api.codec.Codec;
 import com.ctrip.xpipe.api.command.Command;
 import com.ctrip.xpipe.api.command.CommandFuture;
 import com.ctrip.xpipe.api.command.CommandFutureListener;
 import com.ctrip.xpipe.api.observer.Observable;
+import com.ctrip.xpipe.metric.HostPort;
 import com.ctrip.xpipe.observer.AbstractObservable;
 import com.ctrip.xpipe.redis.console.migration.command.MigrationCommandBuilder;
 import com.ctrip.xpipe.redis.console.migration.command.MigrationCommandBuilderImpl;
-import com.ctrip.xpipe.redis.console.migration.command.result.ShardMigrationResult;
-import com.ctrip.xpipe.redis.console.migration.command.result.ShardMigrationResult.ShardMigrationResultStatus;
-import com.ctrip.xpipe.redis.console.migration.command.result.ShardMigrationResult.ShardMigrationStep;
-import com.ctrip.xpipe.redis.console.migration.model.MigrationCluster;
-import com.ctrip.xpipe.redis.console.migration.model.MigrationShard;
+import com.ctrip.xpipe.redis.console.migration.model.*;
 import com.ctrip.xpipe.redis.console.model.DcTbl;
 import com.ctrip.xpipe.redis.console.model.MigrationShardTbl;
 import com.ctrip.xpipe.redis.console.model.ShardTbl;
@@ -22,16 +18,13 @@ import com.ctrip.xpipe.redis.core.metaserver.MetaServerConsoleService.PRIMARY_DC
 import com.ctrip.xpipe.redis.core.metaserver.MetaServerConsoleService.PrimaryDcChangeMessage;
 import com.ctrip.xpipe.redis.core.metaserver.MetaServerConsoleService.PrimaryDcCheckMessage;
 import com.ctrip.xpipe.utils.LogUtils;
-import com.ctrip.xpipe.utils.XpipeThreadFactory;
+import com.ctrip.xpipe.utils.StringUtil;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.net.InetSocketAddress;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
 /**
  * @author shyin
@@ -41,10 +34,7 @@ import java.util.concurrent.Executors;
 public class DefaultMigrationShard extends AbstractObservable implements MigrationShard {
 	
 	private Logger logger = LoggerFactory.getLogger(getClass());
-	private static Codec coder = Codec.DEFAULT;
-	
-	private ExecutorService executors;
-	
+
 	@SuppressWarnings("unused")
 	private MigrationCluster parent;
 	private MigrationShardTbl migrationShard;
@@ -56,9 +46,7 @@ public class DefaultMigrationShard extends AbstractObservable implements Migrati
 	private Map<Long, DcTbl> dcs;
 
 	private MigrationCommandBuilder commandBuilder;
-	
-	private InetSocketAddress newMasterAddr;
-	
+
 	private String cluster;
 	private String shard;
 	private String newPrimaryDc;
@@ -76,17 +64,14 @@ public class DefaultMigrationShard extends AbstractObservable implements Migrati
 		this.currentShard = currentShard;
 		this.dcs = dcs;
 		this.migrationService = migrationService;
-		shardMigrationResult = new ShardMigrationResult();
+		this.shardMigrationResult = DefaultShardMigrationResult.fromEncodeStr(migrationShard.getLog());
 		this.commandBuilder = commandBuilder;
-		this.newMasterAddr = null;
-		
 
-		cluster = parent.getCurrentCluster().getClusterName();
+		cluster = parent.clusterName();
 		shard = currentShard.getShardName();
 		newPrimaryDc = dcs.get(parent.getMigrationCluster().getDestinationDcId()).getDcName();
 		prevPrimaryDc = dcs.get(parent.getCurrentCluster().getActivedcId()).getDcName();
 
-		executors = Executors.newCachedThreadPool(XpipeThreadFactory.create("[migrate]" + cluster+ "," + shard));
 		addObserver(parent);
 		addObserver(this);
 	}
@@ -100,6 +85,11 @@ public class DefaultMigrationShard extends AbstractObservable implements Migrati
 	public ShardMigrationResult getShardMigrationResult() {
 		return shardMigrationResult;
 	}
+
+	//for unit test
+	public void updateShardMigrationResult(ShardMigrationResult result){
+		this.shardMigrationResult = result;
+	}
 	
 	@Override
 	public ShardTbl getCurrentShard() {
@@ -107,16 +97,25 @@ public class DefaultMigrationShard extends AbstractObservable implements Migrati
 	}
 	
 	@Override
-	public InetSocketAddress getNewMasterAddress() {
-		return newMasterAddr;
+	public HostPort getNewMasterAddress() {
+		return shardMigrationResult.getNewMaster();
 	}
 
 	@Override
 	public void update(Object args, Observable observable) {
+
+		logger.debug("[update][begin]{}", this);
+		long begin = System.currentTimeMillis();
+
 		MigrationShardTbl toUpdate = getMigrationShard();
-		toUpdate.setLog(coder.encode(getShardMigrationResult()));
-		migrationService.updateMigrationShard(toUpdate);
-		
+		String log = getShardMigrationResult().encode();
+		migrationService.updateMigrationShardLogById(toUpdate.getId(), log);
+
+		logger.debug("[debug][end]{}", this);
+		long end = System.currentTimeMillis();
+		if((end - begin) > 3){
+			logger.debug("[update][time long]{}, {}", end - begin, this);
+		}
 	}
 	
 	@Override
@@ -128,19 +127,21 @@ public class DefaultMigrationShard extends AbstractObservable implements Migrati
 			@Override
 			public void operationComplete(CommandFuture<PrimaryDcCheckMessage> commandFuture)
 					throws Exception {
+
 				try {
 					PrimaryDcCheckMessage res = commandFuture.get();
+					logger.info("[doCheck]{}, {}, {}, {}", cluster, shard, newPrimaryDc, res);
 					if(PRIMARY_DC_CHECK_RESULT.SUCCESS.equals(res.getErrorType())){
 						shardMigrationResult.updateStepResult(ShardMigrationStep.CHECK, true, LogUtils.info("Check success"));
 					} else {
 						shardMigrationResult.updateStepResult(ShardMigrationStep.CHECK, false, LogUtils.error(res.getErrorMessage()));
 					}
 				} catch (ExecutionException e) {
-					logger.error("[doCheck][fail]",e);
+					logger.error("[doCheck][fail]", e);
 					shardMigrationResult.updateStepResult(ShardMigrationStep.CHECK, false, LogUtils.error(e.getMessage()));
 				}
 				
-				notifyObservers(this);
+				notifyObservers(new ShardObserverEvent(shardName(), ShardMigrationStep.CHECK));
 			}
 		});
 	}
@@ -148,26 +149,28 @@ public class DefaultMigrationShard extends AbstractObservable implements Migrati
 	@Override
 	public void doMigrate() {
 		
-		logger.info("[doMigrate]{}-{}, {}->{}", cluster, shard, prevPrimaryDc, newPrimaryDc);
+		logger.info("[doMigrate][doPrevPrimaryDcMigrate]{}, {}, {}->{}", cluster, shard, prevPrimaryDc, newPrimaryDc);
 		try {
 			doPrevPrimaryDcMigrate(cluster, shard, prevPrimaryDc).get();
 		} catch (InterruptedException | ExecutionException e) {
 			shardMigrationResult.updateStepResult(ShardMigrationStep.MIGRATE_PREVIOUS_PRIMARY_DC, true, LogUtils.error("Ignore:" + e.getMessage()));
 		}
-		
+
+		logger.info("[doMigrate][doNewPrimaryDcMigrate]{}, {}, {}->{}", cluster, shard, prevPrimaryDc, newPrimaryDc);
 		try {
 			doNewPrimaryDcMigrate(cluster, shard, newPrimaryDc).get();
 		} catch (InterruptedException | ExecutionException e) {
 			shardMigrationResult.updateStepResult(ShardMigrationStep.MIGRATE_NEW_PRIMARY_DC, false, LogUtils.error(e.getMessage()));
 		}
 		
-		notifyObservers(this);
+		notifyObservers(new ShardObserverEvent(shardName(), ShardMigrationStep.MIGRATE_PREVIOUS_PRIMARY_DC, ShardMigrationStep.MIGRATE_NEW_PRIMARY_DC));
 	}
 	
 	@Override
 	public void doMigrateOtherDc() {
 		
 		logger.info("[doMigrateOtherDc]{}-{}, {}->{}", cluster, shard, prevPrimaryDc, newPrimaryDc);
+
 		if(shardMigrationResult.stepSuccess(ShardMigrationStep.MIGRATE_NEW_PRIMARY_DC)) {
 			for(DcTbl dc : dcs.values()) {
 				if(!(dc.getDcName().equals(newPrimaryDc))) {
@@ -183,11 +186,11 @@ public class DefaultMigrationShard extends AbstractObservable implements Migrati
 			shardMigrationResult.updateStepResult(ShardMigrationStep.MIGRATE, false, LogUtils.error("Failed"));
 		}
 
-		notifyObservers(this);
+		notifyObservers(new ShardObserverEvent(shardName(), ShardMigrationStep.MIGRATE));
 	}
 
 	@Override
-	public void doRollBack() throws Exception{
+	public void doRollBack() throws ShardMigrationException{
 		
 		logger.info("[rollback]{}-{}, {}<-{}", cluster, shard, prevPrimaryDc, newPrimaryDc);
 		for(DcTbl dc : dcs.values()) {
@@ -195,8 +198,12 @@ public class DefaultMigrationShard extends AbstractObservable implements Migrati
 				doOtherDcRollback(dc.getDcName(), prevPrimaryDc);
 			}
 		}
-		
-		doRollBackPrevPrimaryDc(cluster, shard, prevPrimaryDc).get();
+
+		try {
+			doRollBackPrevPrimaryDc(cluster, shard, prevPrimaryDc).get();
+		} catch (Exception e) {
+			throw new ShardMigrationException(String.format("%s,%s doRollBackPrevPrimaryDc:%s", cluster, shard, prevPrimaryDc), e);
+		}
 	}
 	
 	private CommandFuture<PrimaryDcChangeMessage> doPrevPrimaryDcMigrate(String cluster, String shard, String dc) {
@@ -204,16 +211,16 @@ public class DefaultMigrationShard extends AbstractObservable implements Migrati
 		migrateResult.addListener(new CommandFutureListener<PrimaryDcChangeMessage>() {
 			@Override
 			public void operationComplete(CommandFuture<PrimaryDcChangeMessage> commandFuture) throws Exception {
+
 				try {
-					commandFuture.get();
-					
+					PrimaryDcChangeMessage primaryDcChangeMessage = commandFuture.get();
+					logger.info("[doPrevPrimaryDcMigrate][result]{},{},{},{}", cluster, shard, dc, primaryDcChangeMessage);
 					shardMigrationResult.updateStepResult(ShardMigrationStep.MIGRATE_PREVIOUS_PRIMARY_DC, true, LogUtils.info("Ignored : make previous primary dc read only"));
 				} catch (Exception e) {
 					logger.error("[doPrevPrimaryDcMigrate][fail]",e);
 					shardMigrationResult.updateStepResult(ShardMigrationStep.MIGRATE_PREVIOUS_PRIMARY_DC, true, LogUtils.error("Ignored:" + e.getMessage()));
 				}
-				
-				notifyObservers(this);
+				notifyObservers(new ShardObserverEvent(shardName(), ShardMigrationStep.MIGRATE_PREVIOUS_PRIMARY_DC));
 			}
 		});
 		return migrateResult;
@@ -226,22 +233,21 @@ public class DefaultMigrationShard extends AbstractObservable implements Migrati
 			public void operationComplete(CommandFuture<PrimaryDcChangeMessage> commandFuture) throws Exception {
 				try {
 					PrimaryDcChangeMessage res = commandFuture.get();
-					
+
+					logger.info("[doNewPrimaryDcMigrate]{},{},{},{}", cluster, shard, newPrimaryDc, res);
 					if(PRIMARY_DC_CHANGE_RESULT.SUCCESS.equals(res.getErrorType())) {
 						shardMigrationResult.updateStepResult(ShardMigrationStep.MIGRATE_NEW_PRIMARY_DC, true, res.getErrorMessage());
-						
-						if(null != res.getNewMasterIp()) {
-							newMasterAddr = InetSocketAddress.createUnresolved(res.getNewMasterIp(), res.getNewMasterPort());
-						}
+						shardMigrationResult.setNewMaster(new HostPort(res.getNewMasterIp(), res.getNewMasterPort()));
 					} else {
+						logger.error("[doNewPrimaryDcMigrate][fail]{},{},");
 						shardMigrationResult.updateStepResult(ShardMigrationStep.MIGRATE_NEW_PRIMARY_DC, false, res.getErrorMessage());
 					}
 				} catch (Exception e) {
-					logger.error("[doNewPrimaryDcMigrate][fail]",e);
+					logger.error("[doNewPrimaryDcMigrate][fail]", e);
 					shardMigrationResult.updateStepResult(ShardMigrationStep.MIGRATE_NEW_PRIMARY_DC, false, LogUtils.error(e.getMessage()));
 				}
 				
-				notifyObservers(this);
+				notifyObservers(new ShardObserverEvent(shardName(), ShardMigrationStep.MIGRATE_NEW_PRIMARY_DC));
 			}
 		});
 		return migrateResult;
@@ -254,7 +260,7 @@ public class DefaultMigrationShard extends AbstractObservable implements Migrati
 			 logger.warn("[doOtherDcRollback][fail, command null]{}", this);
 			 return;
 		 }
-		 CommandFuture<PrimaryDcChangeMessage> migrateResult = command.execute(executors);
+		 CommandFuture<PrimaryDcChangeMessage> migrateResult = command.execute();
 		migrateResult.addListener(new CommandFutureListener<PrimaryDcChangeMessage>() {
 
 			@Override
@@ -270,16 +276,15 @@ public class DefaultMigrationShard extends AbstractObservable implements Migrati
 
 	}
 
-
-	
 	private CommandFuture<PrimaryDcChangeMessage> doOtherDcMigrate(String cluster, String shard, String dc, String newPrimaryDc) {
+
 		CommandFuture<PrimaryDcChangeMessage> migrateResult = commandBuilder.buildOtherDcCommand(cluster, shard, newPrimaryDc, dc).execute();
 		migrateResult.addListener(new CommandFutureListener<PrimaryDcChangeMessage>() {
 			@Override
 			public void operationComplete(CommandFuture<PrimaryDcChangeMessage> commandFuture) throws Exception {
 				try {
 					PrimaryDcChangeMessage res = commandFuture.get();
-					
+					logger.info("[doOtherDcMigrate]{},{},{}->{}, {}", cluster, shard, dc, newPrimaryDc, res);
 					if(PRIMARY_DC_CHANGE_RESULT.SUCCESS.equals(res.getErrorType())) {
 						shardMigrationResult.updateStepResult(ShardMigrationStep.MIGRATE_OTHER_DC, true, res.getErrorMessage());
 					} else {
@@ -289,8 +294,7 @@ public class DefaultMigrationShard extends AbstractObservable implements Migrati
 					logger.error("[doOtherDcMigrate][fail]",e);
 					shardMigrationResult.updateStepResult(ShardMigrationStep.MIGRATE_OTHER_DC, false, e.getMessage());
 				}
-				
-				notifyObservers(this);
+				notifyObservers(new ShardObserverEvent(shardName(), ShardMigrationStep.MIGRATE_OTHER_DC));
 			}
 		});
 		return migrateResult;
@@ -302,13 +306,12 @@ public class DefaultMigrationShard extends AbstractObservable implements Migrati
 			@Override
 			public void operationComplete(CommandFuture<PrimaryDcChangeMessage> commandFuture) throws Exception {
 				try {
-					commandFuture.get();
-					logger.info("[doPrevPrimaryDcMigrate][success]");
+					PrimaryDcChangeMessage primaryDcChangeMessage = commandFuture.get();
+					logger.info("[doPrevPrimaryDcMigrate]{},{},{}, {}", cluster, shard, dc, primaryDcChangeMessage);
 				} catch (Exception e) {
 					logger.error("[doPrevPrimaryDcMigrate][fail]",e);
 				}
-
-				notifyObservers(this);
+				notifyObservers(new ShardObserverEvent(shardName(), "doRollBackPrevPrimaryDc"));
 			}
 		});
 		return migrateResult;
@@ -317,5 +320,48 @@ public class DefaultMigrationShard extends AbstractObservable implements Migrati
 	@Override
 	public String toString() {
 		return String.format("[DefaultMigrationShard]%s:%s,%s->%s", cluster, shard, prevPrimaryDc, newPrimaryDc);
+	}
+
+	@Override
+	public String shardName() {
+		return currentShard.getShardName();
+	}
+
+	@Override
+	public ShardMigrationStepResult stepResult(ShardMigrationStep step) {
+		return shardMigrationResult.stepResult(step);
+	}
+
+	@Override
+	public void retry(ShardMigrationStep step) {
+		shardMigrationResult.stepRetry(step);
+	}
+
+
+	public static class ShardObserverEvent{
+
+		private String shardName;
+		private ShardMigrationStep[] step;
+		private String desc;
+
+		public ShardObserverEvent(String shardName, ShardMigrationStep ...step){
+			this.shardName = shardName;
+			this.step = step;
+		}
+
+		public ShardObserverEvent(String shardName, String desc){
+			this.shardName = shardName;
+			this.desc = desc;
+		}
+
+		@Override
+		public String toString() {
+
+			if(step != null){
+				return String.format("%s, step:%s", shardName, StringUtil.join(",", step));
+			}else{
+				return String.format("%s, desc:%s", shardName, desc);
+			}
+		}
 	}
 }

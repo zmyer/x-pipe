@@ -1,5 +1,7 @@
 package com.ctrip.xpipe.redis.console.health;
 
+import java.util.Collection;
+import java.util.LinkedList;
 import java.util.List;
 
 import javax.annotation.PostConstruct;
@@ -48,13 +50,12 @@ public class HealthChecker {
 
 				while (!Thread.currentThread().isInterrupted()) {
 
-					List<DcMeta> dcsToCheck = metaCache.getDcMetas();
-
 					try {
+						List<DcMeta> dcsToCheck = new LinkedList<>(metaCache.getXpipeMeta().getDcs().values());
 						if(dcsToCheck != null){
 							sampleAll(dcsToCheck);
 						}
-					} catch (Exception e) {
+					} catch (Throwable e) {
 						log.error("Unexpected error when sample all", e);
 					}
 
@@ -74,13 +75,19 @@ public class HealthChecker {
 
 		for(SampleMonitor sampleMonitor : sampleMonitors){
 
-			for(Object objectPlan: sampleMonitor.generatePlan(dcMetas)){
+			log.debug("[sampleAll]{}", sampleMonitor);
+			Collection collection = sampleMonitor.generatePlan(dcMetas);
+			if(collection == null){
+				continue;
+			}
+
+			for(Object objectPlan : collection){
 
 				BaseSamplePlan plan = (BaseSamplePlan) objectPlan;
 				try {
 					sampleMonitor.startSample(plan);
 				} catch (Exception e) {
-					log.error("Error sample {} of cluster:{} shard:{}", sampleMonitor, plan.getClusterId(), plan.getShardId(), e);
+					log.error(String.format("Error sample %s of cluster:%s shard:%s", sampleMonitor, plan.getClusterId(), plan.getShardId()), e);
 				}
 			}
 		}

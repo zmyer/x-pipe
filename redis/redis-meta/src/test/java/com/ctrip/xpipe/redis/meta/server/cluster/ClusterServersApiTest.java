@@ -1,7 +1,5 @@
 package com.ctrip.xpipe.redis.meta.server.cluster;
 
-import org.junit.Test;
-import org.springframework.web.client.RestOperations;
 import com.ctrip.xpipe.redis.core.entity.ClusterMeta;
 import com.ctrip.xpipe.redis.core.entity.KeeperMeta;
 import com.ctrip.xpipe.redis.core.metaserver.META_SERVER_SERVICE;
@@ -9,8 +7,12 @@ import com.ctrip.xpipe.redis.core.metaserver.MetaServerConsoleService;
 import com.ctrip.xpipe.redis.core.metaserver.MetaServerConsoleService.PrimaryDcChangeMessage;
 import com.ctrip.xpipe.redis.core.metaserver.MetaServerConsoleService.PrimaryDcCheckMessage;
 import com.ctrip.xpipe.redis.core.metaserver.impl.DefaultMetaServerConsoleService;
+import com.ctrip.xpipe.redis.core.protocal.pojo.MasterInfo;
+import com.ctrip.xpipe.redis.core.redis.RunidGenerator;
 import com.ctrip.xpipe.redis.meta.server.TestMetaServer;
 import com.ctrip.xpipe.spring.RestTemplateFactory;
+import org.junit.Test;
+import org.springframework.web.client.RestOperations;
 
 /**
  * @author wenchao.meng
@@ -35,15 +37,18 @@ public class ClusterServersApiTest extends AbstractMetaServerClusterTest{
 		logger.info(remarkableMessage("[testDoChangePrimaryDc][begin send change primary dc message]"));
 		
 		for(TestMetaServer server : getServers()){
+
 			logger.info(remarkableMessage("[testDoChangePrimaryDc][jq]"));
+			MetaServerConsoleService.PrimaryDcChangeRequest request = new MetaServerConsoleService.PrimaryDcChangeRequest();
+			request.setMasterInfo(new MasterInfo(RunidGenerator.DEFAULT.generateRunid(), 100L));
+
 			MetaServerConsoleService consoleService = new DefaultMetaServerConsoleService(server.getAddress());
-			PrimaryDcChangeMessage message = consoleService.doChangePrimaryDc(getClusterId(), getShardId(), "jq");
+			PrimaryDcChangeMessage message = consoleService.doChangePrimaryDc(getClusterId(), getShardId(), "jq", request);
 			logger.info("{}", message);
 			
 			logger.info(remarkableMessage("[testDoChangePrimaryDc][oy]"));
-			message = consoleService.doChangePrimaryDc(getClusterId(), getShardId(), "oy");
+			message = consoleService.doChangePrimaryDc(getClusterId(), getShardId(), "oy", request);
 			logger.info("{}", message);
-			break;
 		}
 	}
 	
@@ -124,8 +129,10 @@ public class ClusterServersApiTest extends AbstractMetaServerClusterTest{
 			
 			logger.info("[testChangePrimaryDcCheck]{}", server.getAddress());
 			MetaServerConsoleService consoleService = new DefaultMetaServerConsoleService(server.getAddress());
-			consoleService.makeMasterReadOnly(getClusterId(), getShardId(), true);
-			consoleService.makeMasterReadOnly(getClusterId(), getShardId(), false);
+			MetaServerConsoleService.PreviousPrimaryDcMessage message = consoleService.makeMasterReadOnly(getClusterId(), getShardId(), true);
+			logger.info("[testMakeMasterReadOnly][true]{}", message);
+			message = consoleService.makeMasterReadOnly(getClusterId(), getShardId(), false);
+			logger.info("[testMakeMasterReadOnly][false]{}", message);
 		}
 		
 	}

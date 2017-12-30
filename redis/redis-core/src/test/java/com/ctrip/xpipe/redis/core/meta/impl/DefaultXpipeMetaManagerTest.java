@@ -1,20 +1,21 @@
 package com.ctrip.xpipe.redis.core.meta.impl;
 
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
-
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
-import org.unidal.tuple.Pair;
-
+import com.ctrip.xpipe.endpoint.HostPort;
 import com.ctrip.xpipe.redis.core.AbstractRedisTest;
 import com.ctrip.xpipe.redis.core.entity.KeeperMeta;
 import com.ctrip.xpipe.redis.core.entity.RedisMeta;
 import com.ctrip.xpipe.redis.core.entity.SentinelMeta;
+import com.ctrip.xpipe.redis.core.entity.ShardMeta;
 import com.ctrip.xpipe.redis.core.meta.MetaException;
-import com.ctrip.xpipe.redis.core.meta.impl.DefaultXpipeMetaManager;
+import com.ctrip.xpipe.redis.core.meta.XpipeMetaManager;
+import com.ctrip.xpipe.tuple.Pair;
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.Test;
+
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
 /**
  * @author wenchao.meng
@@ -35,12 +36,35 @@ public class DefaultXpipeMetaManagerTest extends AbstractRedisTest {
 		metaManager = (DefaultXpipeMetaManager) DefaultXpipeMetaManager.buildFromFile("file-dao-test.xml");
 		add(metaManager);
 	}
+
+	@Test
+	public void findShard(){
+
+		XpipeMetaManager.MetaDesc metaDesc = metaManager.findMetaDesc(new HostPort("127.0.0.1", 8000));
+
+		Assert.assertEquals("jq", metaDesc.getDcId());
+		Assert.assertEquals("cluster1", metaDesc.getClusterId());
+		Assert.assertEquals("shard1", metaDesc.getShardId());
+
+
+		metaDesc = metaManager.findMetaDesc(new HostPort("127.0.0.1", 6000));
+		Assert.assertEquals("jq", metaDesc.getDcId());
+		Assert.assertEquals("cluster1", metaDesc.getClusterId());
+		Assert.assertEquals("shard1", metaDesc.getShardId());
+	}
 	
 	@Test
 	public void testActiveDc(){
 		
 		Assert.assertEquals(dc, metaManager.getActiveDc(clusterId, shardId));
 		Assert.assertEquals(dc, metaManager.getActiveDc(clusterId, null));
+	}
+
+	@Test
+	public void testGetRedisMaster(){
+
+		Pair<String, RedisMeta> redisMaster = metaManager.getRedisMaster("cluster1", "shard1");
+		Assert.assertEquals("jq", redisMaster.getKey());
 	}
 	
 	@Test
@@ -96,20 +120,20 @@ public class DefaultXpipeMetaManagerTest extends AbstractRedisTest {
 	public void testHas() {
 
 		Assert.assertTrue(metaManager.hasCluster(dc, clusterId));
-		;
+
 		Assert.assertFalse(metaManager.hasCluster(dc, randomString()));
-		;
+
 		Assert.assertFalse(metaManager.hasCluster(randomString(), clusterId));
-		;
+
 
 		Assert.assertTrue(metaManager.hasShard(dc, clusterId, shardId));
-		;
+
 		Assert.assertFalse(metaManager.hasShard(dc, clusterId, randomString()));
-		;
+
 		Assert.assertFalse(metaManager.hasShard(dc, randomString(), shardId));
-		;
+
 		Assert.assertFalse(metaManager.hasShard(randomString(), clusterId, shardId));
-		;
+
 
 	}
 

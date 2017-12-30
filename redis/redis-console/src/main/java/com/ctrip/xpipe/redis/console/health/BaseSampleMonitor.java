@@ -1,27 +1,28 @@
 package com.ctrip.xpipe.redis.console.health;
 
-import java.util.*;
-import java.util.Map.Entry;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
-
-import javax.annotation.PostConstruct;
-
-import com.ctrip.xpipe.metric.HostPort;
-import com.ctrip.xpipe.redis.console.health.ping.InstancePingResult;
-import com.ctrip.xpipe.redis.console.health.ping.PingSamplePlan;
-import com.ctrip.xpipe.redis.console.health.redisconf.InstanceRedisConfResult;
+import com.ctrip.xpipe.concurrent.AbstractExceptionLogTask;
+import com.ctrip.xpipe.concurrent.DefaultExecutorFactory;
+import com.ctrip.xpipe.endpoint.HostPort;
+import com.ctrip.xpipe.redis.console.config.ConsoleConfig;
 import com.ctrip.xpipe.redis.core.entity.ClusterMeta;
 import com.ctrip.xpipe.redis.core.entity.DcMeta;
 import com.ctrip.xpipe.redis.core.entity.RedisMeta;
 import com.ctrip.xpipe.redis.core.entity.ShardMeta;
+import com.ctrip.xpipe.tuple.Pair;
+import com.ctrip.xpipe.utils.OsUtils;
+import com.ctrip.xpipe.utils.VisibleForTesting;
+import com.ctrip.xpipe.utils.XpipeThreadFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 
-import com.ctrip.xpipe.redis.console.config.ConsoleConfig;
-import com.ctrip.xpipe.utils.XpipeThreadFactory;
-import org.unidal.tuple.Pair;
+import javax.annotation.PostConstruct;
+import javax.annotation.PreDestroy;
+import java.util.*;
+import java.util.Map.Entry;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ExecutorService;
 
 /**
  * @author marsqing
@@ -37,9 +38,24 @@ public abstract class BaseSampleMonitor<T extends BaseInstanceResult> implements
 	private ConsoleConfig config;
 
 	@Autowired
-	private RedisSessionManager redisSessionManager;
+	protected RedisSessionManager redisSessionManager;
 
-	protected ConcurrentMap<Long, Sample<T>> samples = new ConcurrentHashMap<>();
+	protected Map<Long, Sample<T>> samples = new ConcurrentHashMap<>();
+
+	protected Thread daemonThread;
+
+	private ExecutorService executors;
+
+	@PostConstruct
+	public void postBaseSampleMonitor(){
+		executors = DefaultExecutorFactory.createAllowCoreTimeoutAbortPolicy("Collector-" + getClass().getSimpleName()).createExecutorService();
+	}
+
+	@PreDestroy
+	public void preBaseSampleMonitor(){
+		executors.shutdown();
+	}
+
 
 	protected abstract void notifyCollectors(Sample<T> sample);
 
@@ -87,7 +103,7 @@ public abstract class BaseSampleMonitor<T extends BaseInstanceResult> implements
 
 	@PostConstruct
 	public void scanSamples() {
-		XpipeThreadFactory.create("SampleMonitor-" + getClass().getSimpleName(), true).newThread(new Runnable() {
+		daemonThread = XpipeThreadFactory.create("SampleMonitor-" + getClass().getSimpleName(), true).newThread(new Runnable() {
 
 			@Override
 			public void run() {
@@ -108,23 +124,37 @@ public abstract class BaseSampleMonitor<T extends BaseInstanceResult> implements
 			}
 
 			private void doScan() {
-				Iterator<Entry<Long, Sample<T>>> iter = samples.entrySet().iterator();
 
+
+				long start = System.currentTimeMillis();
+				int  count = 0;
+
+				Iterator<Entry<Long, Sample<T>>> iter = samples.entrySet().iterator();
 				while (iter.hasNext()) {
+					count++;
 					Sample<T> sample = iter.next().getValue();
 
 					if (sample.isDone() || sample.isExpired()) {
 						try {
-							notifyCollectors(sample);
+							executors.execute(new AbstractExceptionLogTask() {
+								@Override
+								protected void doRun() throws Exception {
+									notifyCollectors(sample);
+								}
+							});
 						} catch (Exception e) {
 							log.error("Exception caught from notified collectors", e);
 						}
 						iter.remove();
 					}
 				}
+				long end = System.currentTimeMillis();
+				log.info("[scan end]count:{}, cost: {} ms", count, end - start);
+
 			}
 
-		}).start();
+		});
+		daemonThread.start();
 	}
 
 	@Override
@@ -134,6 +164,9 @@ public abstract class BaseSampleMonitor<T extends BaseInstanceResult> implements
 
 		for (DcMeta dcMeta : dcMetas) {
 			for (ClusterMeta clusterMeta : dcMeta.getClusters().values()) {
+				if(!addCluster(dcMeta.getId(), clusterMeta)){
+					continue;
+				}
 				for (ShardMeta shardMeta : clusterMeta.getShards().values()) {
 					Pair<String, String> cs = new Pair<>(clusterMeta.getId(), shardMeta.getId());
 					BaseSamplePlan<T> plan = plans.get(cs);
@@ -153,8 +186,21 @@ public abstract class BaseSampleMonitor<T extends BaseInstanceResult> implements
 		return plans.values();
 	}
 
+	protected boolean addCluster(String dcName, ClusterMeta clusterMeta) {
+		return true;
+	}
+
 	protected abstract void addRedis(BaseSamplePlan<T> plan, String dcId, RedisMeta redisMeta);
 
 	protected abstract BaseSamplePlan<T> createPlan(String clusterId, String shardId);
 
+	@VisibleForTesting
+	public void setSamples(Map<Long, Sample<T>> samples) {
+		this.samples = samples;
+	}
+
+	@PreDestroy
+	public void preDestroy() {
+		daemonThread.interrupt();
+	}
 }

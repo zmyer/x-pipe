@@ -1,11 +1,10 @@
 package com.ctrip.xpipe.redis.core.meta.comparator;
 
-import java.util.Set;
-
-import org.unidal.tuple.Triple;
-
 import com.ctrip.xpipe.redis.core.entity.ClusterMeta;
 import com.ctrip.xpipe.redis.core.entity.DcMeta;
+import org.unidal.tuple.Triple;
+
+import java.util.Set;
 
 /**
  * @author wenchao.meng
@@ -78,5 +77,17 @@ public class DcMetaComparator extends AbstractMetaComparator<ClusterMeta, DcChan
 				modified.add(clusterMetaComparator);
 			}
 		}
+	}
+
+	@Override
+	public String idDesc() {
+
+		if(current != null){
+			return current.getId();
+		}
+		if(future != null){
+			return future.getId();
+		}
+		return null;
 	}
 }

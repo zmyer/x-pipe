@@ -1,9 +1,7 @@
 package com.ctrip.xpipe.redis.console.controller.api.migrate;
 
-import java.util.LinkedList;
-import java.util.List;
-
 import com.ctrip.xpipe.api.migration.DcMapper;
+import com.ctrip.xpipe.redis.console.controller.AbstractConsoleController;
 import com.ctrip.xpipe.redis.console.controller.api.migrate.meta.*;
 import com.ctrip.xpipe.redis.console.migration.model.MigrationCluster;
 import com.ctrip.xpipe.redis.console.migration.model.MigrationEvent;
@@ -18,7 +16,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 
-import com.ctrip.xpipe.redis.console.controller.AbstractConsoleController;
+import java.util.LinkedList;
+import java.util.List;
 
 /**
  * @author wenchao.meng
@@ -48,7 +47,7 @@ public class MigrationApi extends AbstractConsoleController {
         String fromIdc = checkMeta.getFromIdc();
         for (String clusterName : checkMeta.getClusters()) {
             try {
-                TryMigrateResult tryMigrateResult = migrationService.tryMigrate(clusterName, fromIdc);
+                TryMigrateResult tryMigrateResult = migrationService.tryMigrate(clusterName, fromIdc, checkMeta.getToIdc());
                 maySuccessClusters.add(tryMigrateResult);
                 logger.info("[checkAndPrepare]{}", tryMigrateResult);
             } catch (ClusterNotFoundException e) {
@@ -187,10 +186,18 @@ public class MigrationApi extends AbstractConsoleController {
     }
 
     private void mapRequestIdc(CheckPrepareRequest checkMeta) {
-        String reverse = dcMapper.reverse(checkMeta.getFromIdc());
-        if(reverse != null){
-            logger.debug("[checkRequestIdc][reverse dc]{} -> {}", checkMeta.getFromIdc(), reverse);
-            checkMeta.setFromIdc(reverse);
+
+        String fromIdcReverse = dcMapper.reverse(checkMeta.getFromIdc());
+        if(fromIdcReverse != null){
+            logger.debug("[checkRequestIdc][reverse dc]{} -> {}", checkMeta.getFromIdc(), fromIdcReverse);
+            checkMeta.setFromIdc(fromIdcReverse);
         }
+
+        String toIdcReverse = dcMapper.reverse(checkMeta.getToIdc());
+        if(toIdcReverse != null){
+            logger.debug("[checkRequestIdc][reverse dc]{} -> {}", checkMeta.getToIdc(), toIdcReverse);
+            checkMeta.setToIdc(toIdcReverse);
+        }
+
     }
 }

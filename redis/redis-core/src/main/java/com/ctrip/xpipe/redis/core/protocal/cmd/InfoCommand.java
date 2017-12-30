@@ -1,12 +1,11 @@
 package com.ctrip.xpipe.redis.core.protocal.cmd;
 
-import java.util.concurrent.ScheduledExecutorService;
-
 import com.ctrip.xpipe.api.pool.SimpleObjectPool;
 import com.ctrip.xpipe.netty.commands.NettyClient;
 import com.ctrip.xpipe.redis.core.protocal.protocal.RequestStringParser;
-
 import io.netty.buffer.ByteBuf;
+
+import java.util.concurrent.ScheduledExecutorService;
 
 /**
  * @author marsqing
@@ -20,6 +19,11 @@ public class InfoCommand extends AbstractRedisCommand<String> {
 	public InfoCommand(SimpleObjectPool<NettyClient> clientPool, String args, ScheduledExecutorService scheduled) {
 		super(clientPool, scheduled);
 		this.args = args;
+	}
+
+	public InfoCommand(SimpleObjectPool<NettyClient> clientPool, INFO_TYPE infoType, ScheduledExecutorService scheduled) {
+		super(clientPool, scheduled);
+		this.args = infoType.cmd();
 	}
 
 	@Override
@@ -43,6 +47,17 @@ public class InfoCommand extends AbstractRedisCommand<String> {
 	@Override
 	public String toString() {
 		return getName() + " " + (args == null? "":args);
+	}
+
+
+	public static enum INFO_TYPE{
+
+		REPLICATION,
+		SERVER;
+
+		public String cmd(){
+			return toString().toLowerCase();
+		}
 	}
 
 }

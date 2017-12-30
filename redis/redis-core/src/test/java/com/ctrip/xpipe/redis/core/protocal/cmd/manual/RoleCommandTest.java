@@ -1,14 +1,13 @@
 package com.ctrip.xpipe.redis.core.protocal.cmd.manual;
 
-import org.junit.Assert;
-import org.junit.Test;
-
 import com.ctrip.xpipe.api.server.Server.SERVER_ROLE;
 import com.ctrip.xpipe.redis.core.protocal.MASTER_STATE;
 import com.ctrip.xpipe.redis.core.protocal.cmd.RoleCommand;
-import com.ctrip.xpipe.redis.core.protocal.pojo.SlaveRole;
 import com.ctrip.xpipe.redis.core.protocal.pojo.Role;
+import com.ctrip.xpipe.redis.core.protocal.pojo.SlaveRole;
 import com.ctrip.xpipe.simpleserver.Server;
+import org.junit.Assert;
+import org.junit.Test;
 
 /**
  * @author wenchao.meng
@@ -27,7 +26,11 @@ public class RoleCommandTest extends AbstractCommandTest{
 					+ "$9\r\n127.0.0.1\r\n"
 					+ "$4\r\n6479\r\n"
 					+ "$1\r\n0\r\n");
-		RoleCommand roleCommand = new RoleCommand(getXpipeNettyClientKeyedObjectPool().getKeyPool(localhostInetAddress(master.getPort())), false, scheduled);
+		RoleCommand roleCommand = new RoleCommand(
+				getXpipeNettyClientKeyedObjectPool().getKeyPool(localhostInetAddress(master.getPort())),
+				2000,
+				false,
+				scheduled);
 		Role role = roleCommand.execute().get();
 		
 		Assert.assertEquals(SERVER_ROLE.MASTER, role.getServerRole());
@@ -45,7 +48,9 @@ public class RoleCommandTest extends AbstractCommandTest{
 					+ ":6379\r\n"
 					+ "$" +masterState.getDesc().length()+ "\r\n" + masterState.getDesc()+ "\r\n"
 					+ ":477\r\n");
-			RoleCommand roleCommand = new RoleCommand(getXpipeNettyClientKeyedObjectPool().getKeyPool(localhostInetAddress(slave.getPort())), false, scheduled);
+			RoleCommand roleCommand = new RoleCommand(
+					getXpipeNettyClientKeyedObjectPool().getKeyPool(localhostInetAddress(slave.getPort())),
+					2000, false, scheduled);
 			SlaveRole role = (SlaveRole) roleCommand.execute().get();
 			
 			Assert.assertEquals(SERVER_ROLE.SLAVE, role.getServerRole());
@@ -66,7 +71,9 @@ public class RoleCommandTest extends AbstractCommandTest{
 				+ ":6379\r\n"
 				+ "$9\r\nconnected\r\n"
 				+ ":477\r\n");
-		RoleCommand roleCommand = new RoleCommand(getXpipeNettyClientKeyedObjectPool().getKeyPool(localhostInetAddress(slave.getPort())), false, scheduled);
+		RoleCommand roleCommand = new RoleCommand(
+				getXpipeNettyClientKeyedObjectPool().getKeyPool(localhostInetAddress(slave.getPort())),
+				2000, false, scheduled);
 		SlaveRole role = (SlaveRole) roleCommand.execute().get();
 		
 		Assert.assertEquals(SERVER_ROLE.KEEPER, role.getServerRole());

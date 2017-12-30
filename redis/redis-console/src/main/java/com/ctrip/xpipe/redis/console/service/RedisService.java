@@ -1,17 +1,19 @@
 package com.ctrip.xpipe.redis.console.service;
 
-import java.util.List;
-
 import com.ctrip.xpipe.redis.console.model.RedisTbl;
 import com.ctrip.xpipe.redis.console.model.ShardModel;
 import com.ctrip.xpipe.redis.console.service.exception.ResourceNotFoundException;
+import com.ctrip.xpipe.tuple.Pair;
 import org.unidal.dal.jdbc.DalException;
-import org.unidal.tuple.Pair;
+
+import java.util.List;
 
 public interface RedisService {
 	
 	RedisTbl find(long id);
-	RedisTbl findWithIpPort(String ip, int port);
+
+	List<RedisTbl> findAllRedisWithSameIP(String ip);
+
 	List<RedisTbl> findAllByDcClusterShard(long dcClusterShardId);
 
 	List<RedisTbl> findAllRedisesByDcClusterName(String dcId, String clusterId);

@@ -1,18 +1,16 @@
 package com.ctrip.xpipe.redis.core.protocal.cmd;
 
-import java.io.IOException;
-import java.util.concurrent.ScheduledExecutorService;
-
-import org.unidal.tuple.Pair;
-
 import com.ctrip.xpipe.api.pool.SimpleObjectPool;
 import com.ctrip.xpipe.netty.commands.NettyClient;
 import com.ctrip.xpipe.redis.core.protocal.protocal.BulkStringParser;
 import com.ctrip.xpipe.redis.core.protocal.protocal.EofType;
 import com.ctrip.xpipe.redis.core.store.RdbStore;
 import com.ctrip.xpipe.redis.core.store.ReplicationStore;
-
+import com.ctrip.xpipe.tuple.Pair;
 import io.netty.buffer.ByteBuf;
+
+import java.io.IOException;
+import java.util.concurrent.ScheduledExecutorService;
 
 /**
  * @author marsqing
@@ -33,7 +31,7 @@ public abstract class AbstractReplicationStorePsync extends AbstractPsync {
 	
 
 	@Override
-	protected  Pair<String, Long> getRequestMasterInfo() {
+	protected Pair<String, Long> getRequestMasterInfo() {
 		
 		String replIdRequest = null;
 		long offset = -1;

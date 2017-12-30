@@ -1,17 +1,20 @@
 package com.ctrip.xpipe.redis.console.service;
 
-import java.util.List;
-
 import com.ctrip.xpipe.redis.console.migration.status.ClusterStatus;
 import com.ctrip.xpipe.redis.console.model.ClusterModel;
 import com.ctrip.xpipe.redis.console.model.ClusterTbl;
 
+import java.util.List;
+
 public interface ClusterService {
 
 	ClusterTbl find(String clusterName);
+	ClusterTbl findClusterAndOrg(String clusterName);
+	ClusterStatus clusterStatus(String clusterName);
+
 	ClusterTbl find(long clusterId);
-	List<ClusterTbl> findAllClusters();
-	List<ClusterTbl> findClustersByActiveDcId(long activeDc);
+	List<ClusterTbl> findAllClustersWithOrgInfo();
+	List<ClusterTbl> findClustersWithOrgInfoByActiveDcId(long activeDc);
 	List<String> findAllClusterNames();
 	Long getAllCount();
 	ClusterTbl createCluster(ClusterModel clusterModel);
@@ -23,4 +26,7 @@ public interface ClusterService {
 	void bindDc(String clusterName, String dcName);
 	void unbindDc(String clusterName, String dcName);
 	void update(ClusterTbl cluster);
+
+
+
 }

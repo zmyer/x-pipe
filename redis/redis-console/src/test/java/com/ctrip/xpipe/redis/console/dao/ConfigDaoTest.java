@@ -2,6 +2,9 @@ package com.ctrip.xpipe.redis.console.dao;
 
 import com.ctrip.xpipe.redis.console.AbstractConsoleIntegrationTest;
 import com.ctrip.xpipe.redis.console.config.impl.DefaultConsoleDbConfig;
+import com.ctrip.xpipe.redis.console.model.ConfigModel;
+import com.ctrip.xpipe.redis.console.model.ConfigTbl;
+import com.ctrip.xpipe.utils.DateTimeUtils;
 import org.junit.Assert;
 import org.junit.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -10,6 +13,7 @@ import org.unidal.dal.jdbc.DalNotFoundException;
 
 import java.io.IOException;
 import java.sql.SQLException;
+import java.util.Date;
 
 /**
  * @author wenchao.meng
@@ -57,11 +61,50 @@ public class ConfigDaoTest extends AbstractConsoleIntegrationTest {
 
     }
 
+
+    @Test
+    public void testSetKeyAndUntil() throws Exception {
+        String localKey = "config.dao.test";
+        String value = String.valueOf(false);
+        Date date = DateTimeUtils.getHoursLaterDate(1);
+        ConfigModel model = new ConfigModel().setKey(localKey).setVal(value);
+        configDao.setConfigAndUntil(model, date);
+
+        ConfigTbl config = configDao.getByKey(localKey);
+        logger.info("config: {}", config);
+
+        Assert.assertEquals(value, config.getValue());
+
+        Assert.assertEquals(date, config.getUntil());
+    }
+
+    @Test
+    public void testSetConfigAndUntil2() throws Exception {
+        String localKey = "config.dao.test";
+        String value = String.valueOf(true);
+        Date date = DateTimeUtils.getHoursLaterDate(1);
+
+        configDao.setKey(localKey, value);
+
+        value = String.valueOf(false);
+        ConfigModel model = new ConfigModel().setKey(localKey).setVal(value);
+        configDao.setConfigAndUntil(model, date);
+
+        ConfigTbl config = configDao.getByKey(localKey);
+        logger.info("config: {}", config);
+
+        Assert.assertEquals(value, config.getValue());
+
+        Assert.assertEquals(date, config.getUntil());
+    }
+
     private boolean getBooleanValue(String key) throws DalException {
 
         String strValue = configDao.getKey(key);
         logger.info("[getBooleanValue]{}, {}", key, strValue);
         return Boolean.parseBoolean(strValue);
     }
+
+
 
 }

@@ -4,7 +4,8 @@ import com.ctrip.xpipe.api.factory.ObjectFactory;
 import com.ctrip.xpipe.api.observer.Observable;
 import com.ctrip.xpipe.api.observer.Observer;
 import com.ctrip.xpipe.concurrent.AbstractExceptionLogTask;
-import com.ctrip.xpipe.metric.HostPort;
+import com.ctrip.xpipe.concurrent.DefaultExecutorFactory;
+import com.ctrip.xpipe.endpoint.HostPort;
 import com.ctrip.xpipe.redis.console.config.ConsoleConfig;
 import com.ctrip.xpipe.redis.console.health.HealthChecker;
 import com.ctrip.xpipe.redis.console.health.delay.DelayCollector;
@@ -37,14 +38,13 @@ public class AllMonitorCollector implements PingCollector, DelayCollector{
     protected Logger logger = LoggerFactory.getLogger(getClass());
 
     private final int  THREAD_COUNT = 4;
-
-    private int downAfterCheckNums = 5;
+    private final int  CORE_POOL_MONITOR_PROCESS = 100;
 
     private Map<HostPort, HealthStatus> allHealthStatus = new ConcurrentHashMap<>();
 
-    private ScheduledExecutorService scheduled = Executors.newScheduledThreadPool(THREAD_COUNT, XpipeThreadFactory.create("ALL_MONITOR_CHECK"));
+    private ScheduledExecutorService scheduled;
 
-    private ExecutorService executors = Executors.newCachedThreadPool(XpipeThreadFactory.create("ALL_MONITOR_PRO"));
+    private ExecutorService executors;
 
     @Autowired
     private ConsoleConfig consoleConfig;
@@ -54,6 +54,8 @@ public class AllMonitorCollector implements PingCollector, DelayCollector{
 
     @PostConstruct
     public void postConstruct(){
+        scheduled = Executors.newScheduledThreadPool(THREAD_COUNT, XpipeThreadFactory.create("ALL_MONITOR_CHECK"));
+        executors = DefaultExecutorFactory.createAllowCoreTimeoutAbortPolicy("ALL_MONITOR_PRO", CORE_POOL_MONITOR_PROCESS).createExecutorService();
 
     }
 
@@ -70,6 +72,7 @@ public class AllMonitorCollector implements PingCollector, DelayCollector{
     @PreDestroy
     public void preDestroy(){
         scheduled.shutdownNow();
+        executors.shutdownNow();
     }
 
 
@@ -93,7 +96,7 @@ public class AllMonitorCollector implements PingCollector, DelayCollector{
 
                 HealthStatus healthStatus = new HealthStatus(
                         key,
-                        () -> downAfterCheckNums * consoleConfig.getRedisReplicationHealthCheckInterval(),
+                        () -> consoleConfig.getDownAfterCheckNums() * consoleConfig.getRedisReplicationHealthCheckInterval(),
                         () -> consoleConfig.getHealthyDelayMilli(),
                         scheduled);
 

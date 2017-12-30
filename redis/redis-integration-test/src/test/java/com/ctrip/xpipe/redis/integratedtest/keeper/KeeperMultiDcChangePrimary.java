@@ -1,19 +1,12 @@
 package com.ctrip.xpipe.redis.integratedtest.keeper;
 
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.mockito.Mock;
-import static org.mockito.Mockito.*;
-
-import java.util.List;
-
-import org.mockito.runners.MockitoJUnitRunner;
-
 import com.ctrip.xpipe.redis.core.entity.RedisMeta;
 import com.ctrip.xpipe.redis.core.metaserver.MetaServerConsoleService.PrimaryDcChangeMessage;
+import com.ctrip.xpipe.redis.core.protocal.pojo.MasterInfo;
 import com.ctrip.xpipe.redis.keeper.config.KeeperConfig;
 import com.ctrip.xpipe.redis.keeper.config.TestKeeperConfig;
+import com.ctrip.xpipe.redis.meta.server.dcchange.ExecutionLog;
+import com.ctrip.xpipe.redis.meta.server.dcchange.OffsetWaiter;
 import com.ctrip.xpipe.redis.meta.server.dcchange.SentinelManager;
 import com.ctrip.xpipe.redis.meta.server.dcchange.impl.BecomeBackupAction;
 import com.ctrip.xpipe.redis.meta.server.dcchange.impl.BecomePrimaryAction;
@@ -21,6 +14,15 @@ import com.ctrip.xpipe.redis.meta.server.dcchange.impl.FirstNewMasterChooser;
 import com.ctrip.xpipe.redis.meta.server.meta.CurrentMetaManager;
 import com.ctrip.xpipe.redis.meta.server.meta.DcMetaCache;
 import com.ctrip.xpipe.redis.meta.server.multidc.MultiDcService;
+import org.junit.Before;
+import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.mockito.Mock;
+import org.mockito.runners.MockitoJUnitRunner;
+
+import java.util.List;
+
+import static org.mockito.Mockito.when;
 
 /**
  * @author wenchao.meng
@@ -41,6 +43,9 @@ public class KeeperMultiDcChangePrimary extends AbstractKeeperIntegratedMultiDc{
 	
 	@Mock
 	private MultiDcService multiDcService;
+
+	@Mock
+	private OffsetWaiter offsetWaiter;
 	
 	private FirstNewMasterChooser newMasterChooser;
 	
@@ -62,8 +67,8 @@ public class KeeperMultiDcChangePrimary extends AbstractKeeperIntegratedMultiDc{
 		when(currentMetaManager.getSurviveKeepers(getClusterId(), getShardId())).thenReturn(getDcKeepers(backupDc, getClusterId(), getShardId()));
 		
 		logger.info(remarkableMessage("[make dc primary]change dc primary to:" + backupDc));
-		BecomePrimaryAction becomePrimaryAction = new BecomePrimaryAction(dcMetaCache, currentMetaManager, sentinelManager, getXpipeNettyClientKeyedObjectPool(), newMasterChooser, scheduled, executors);
-		PrimaryDcChangeMessage message = becomePrimaryAction.changePrimaryDc(getClusterId(), getShardId(), backupDc);
+		BecomePrimaryAction becomePrimaryAction = new BecomePrimaryAction(dcMetaCache, currentMetaManager, sentinelManager, offsetWaiter, new ExecutionLog(currentTestName()), getXpipeNettyClientKeyedObjectPool(), newMasterChooser, scheduled, executors);
+		PrimaryDcChangeMessage message = becomePrimaryAction.changePrimaryDc(getClusterId(), getShardId(), backupDc, new MasterInfo());
 		logger.info("{}", message);
 
 		sleep(2000);
@@ -76,8 +81,8 @@ public class KeeperMultiDcChangePrimary extends AbstractKeeperIntegratedMultiDc{
 		when(currentMetaManager.getKeeperActive(getClusterId(), getShardId())).thenReturn(getKeeperActive(primaryDc));
 		when(currentMetaManager.getSurviveKeepers(getClusterId(), getShardId())).thenReturn(getDcKeepers(primaryDc, getClusterId(), getShardId()));
 		
-		BecomeBackupAction becomeBackupAction = new BecomeBackupAction(dcMetaCache, currentMetaManager, sentinelManager, getXpipeNettyClientKeyedObjectPool(), multiDcService, scheduled, executors);
-		message = becomeBackupAction.changePrimaryDc(getClusterId(), getShardId(), backupDc);
+		BecomeBackupAction becomeBackupAction = new BecomeBackupAction(dcMetaCache, currentMetaManager, sentinelManager, new ExecutionLog(currentTestName()), getXpipeNettyClientKeyedObjectPool(), multiDcService, scheduled, executors);
+		message = becomeBackupAction.changePrimaryDc(getClusterId(), getShardId(), backupDc, new MasterInfo());
 		logger.info("{}", message);
 
 		sleep(2000);

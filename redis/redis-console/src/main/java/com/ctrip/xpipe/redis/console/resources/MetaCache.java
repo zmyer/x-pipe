@@ -1,12 +1,9 @@
 package com.ctrip.xpipe.redis.console.resources;
 
-import com.ctrip.xpipe.metric.HostPort;
-import com.ctrip.xpipe.redis.core.entity.DcMeta;
-import com.ctrip.xpipe.redis.core.entity.ShardMeta;
+import com.ctrip.xpipe.endpoint.HostPort;
 import com.ctrip.xpipe.redis.core.entity.XpipeMeta;
-import org.unidal.tuple.Pair;
+import com.ctrip.xpipe.tuple.Pair;
 
-import java.util.List;
 import java.util.Set;
 
 /**
@@ -22,6 +19,8 @@ public interface MetaCache {
 
     HostPort findMasterInSameShard(HostPort hostPort);
 
+    Set<HostPort> allKeepers();
+
     Pair<String, String> findClusterShard(HostPort hostPort);
 
     String getSentinelMonitorName(String clusterId, String shardId);
@@ -29,4 +28,6 @@ public interface MetaCache {
     Set<HostPort> getActiveDcSentinels(String clusterId, String shardId);
 
     HostPort findMaster(String clusterId, String shardId) throws MasterNotFoundException;
+
+    String getDc(HostPort hostPort);
 }

@@ -1,11 +1,5 @@
 package com.ctrip.xpipe.redis.meta.server.job;
 
-import java.net.InetSocketAddress;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.concurrent.Executor;
-import java.util.concurrent.ScheduledExecutorService;
-
 import com.ctrip.xpipe.api.command.Command;
 import com.ctrip.xpipe.api.command.CommandFuture;
 import com.ctrip.xpipe.api.command.CommandFutureListener;
@@ -22,6 +16,12 @@ import com.ctrip.xpipe.redis.core.entity.RedisMeta;
 import com.ctrip.xpipe.redis.core.protocal.error.RedisError;
 import com.ctrip.xpipe.retry.RetryDelay;
 
+import java.net.InetSocketAddress;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ScheduledExecutorService;
+
 /**
  * @author wenchao.meng
  *
@@ -34,7 +34,7 @@ public abstract class AbstractRedisesSlaveofJob extends AbstractCommand<Void>{
 	private int masterPort;
 	private SimpleKeyedObjectPool<InetSocketAddress, NettyClient> clientPool;
 	private int delayBaseMilli = 100;
-	private int retryTimes = 2;
+	private int retryTimes = 1;
 	protected ScheduledExecutorService scheduled;
 	protected Executor executors;
 

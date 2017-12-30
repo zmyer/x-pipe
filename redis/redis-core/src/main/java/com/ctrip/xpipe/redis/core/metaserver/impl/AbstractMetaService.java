@@ -1,16 +1,15 @@
 package com.ctrip.xpipe.redis.core.metaserver.impl;
 
-import java.util.List;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.web.client.RestOperations;
-
 import com.ctrip.xpipe.redis.core.entity.KeeperMeta;
 import com.ctrip.xpipe.redis.core.metaserver.META_SERVER_SERVICE;
 import com.ctrip.xpipe.redis.core.metaserver.MetaServerService;
 import com.ctrip.xpipe.spring.RestTemplateFactory;
 import com.google.common.base.Function;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.web.client.RestOperations;
+
+import java.util.List;
 
 /**
  * @author wenchao.meng
@@ -40,7 +39,7 @@ public abstract class AbstractMetaService implements MetaServerService {
 
 		this.retryTimes = retryTimes;
 		this.retryIntervalMilli = retryIntervalMilli;
-		this.restTemplate = RestTemplateFactory.createCommonsHttpRestTemplate(this.retryTimes, this.retryIntervalMilli);
+		this.restTemplate = RestTemplateFactory.createCommonsHttpRestTemplateWithRetry(this.retryTimes, this.retryIntervalMilli);
 	}
 
 	protected <T> T pollMetaServer(Function<String, T> fun) {

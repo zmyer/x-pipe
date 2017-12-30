@@ -1,13 +1,12 @@
 package com.ctrip.xpipe.redis.core.meta.comparator;
 
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
-
 import com.ctrip.xpipe.redis.core.entity.KeeperMeta;
 import com.ctrip.xpipe.redis.core.entity.ShardMeta;
 import com.ctrip.xpipe.redis.core.meta.MetaClone;
 import com.ctrip.xpipe.redis.core.meta.comparator.ShardMetaComparator.ShardUpstreamChanged;
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.Test;
 
 
 
@@ -82,6 +81,23 @@ public class ShardMetaComparatorTest extends AbstractComparatorTest{
 		Assert.assertEquals(0, comparator.getRemoved().size());
 		Assert.assertEquals(0, comparator.getMofified().size());
 	}
-	
-	
+
+
+	@Test
+	public void testEqualsWithSentinelIdChanged(){
+
+		//equal
+
+		long currentSentinelId = future.getSentinelId() == null ? 0 : future.getSentinelId();
+		future.setSentinelId( currentSentinelId + 100 );
+
+		ShardMetaComparator comparator = new ShardMetaComparator(current, future);
+		comparator.compare();
+
+		Assert.assertEquals(0, comparator.getAdded().size());
+		Assert.assertEquals(0, comparator.getRemoved().size());
+		Assert.assertEquals(0, comparator.getMofified().size());
+	}
+
+
 }

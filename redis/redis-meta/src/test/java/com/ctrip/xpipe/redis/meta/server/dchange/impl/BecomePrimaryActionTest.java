@@ -1,23 +1,27 @@
 package com.ctrip.xpipe.redis.meta.server.dchange.impl;
 
-import java.util.LinkedList;
-import java.util.List;
-
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.mockito.Mock;
-import static org.mockito.Mockito.*;
-import org.mockito.runners.MockitoJUnitRunner;
-
 import com.ctrip.xpipe.redis.core.entity.RedisMeta;
 import com.ctrip.xpipe.redis.core.metaserver.MetaServerConsoleService.PrimaryDcChangeMessage;
+import com.ctrip.xpipe.redis.core.protocal.pojo.MasterInfo;
 import com.ctrip.xpipe.redis.meta.server.AbstractMetaServerTest;
+import com.ctrip.xpipe.redis.meta.server.dcchange.ExecutionLog;
 import com.ctrip.xpipe.redis.meta.server.dcchange.NewMasterChooser;
+import com.ctrip.xpipe.redis.meta.server.dcchange.OffsetWaiter;
 import com.ctrip.xpipe.redis.meta.server.dcchange.SentinelManager;
 import com.ctrip.xpipe.redis.meta.server.dcchange.impl.BecomePrimaryAction;
 import com.ctrip.xpipe.redis.meta.server.meta.CurrentMetaManager;
 import com.ctrip.xpipe.redis.meta.server.meta.DcMetaCache;
+import org.junit.Before;
+import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.mockito.Mock;
+import org.mockito.runners.MockitoJUnitRunner;
+
+import java.util.LinkedList;
+import java.util.List;
+
+import static org.mockito.Mockito.anyList;
+import static org.mockito.Mockito.when;
 
 /**
  * @author wenchao.meng
@@ -38,6 +42,9 @@ public class BecomePrimaryActionTest extends AbstractMetaServerTest{
 	
 	@Mock
 	private NewMasterChooser newMasterChooser;
+
+	@Mock
+	private OffsetWaiter offsetWaiter;
 	
 	private String newPrimaryDc = "jq";
 
@@ -60,9 +67,8 @@ public class BecomePrimaryActionTest extends AbstractMetaServerTest{
 	@Test
 	public void test() throws Exception{
 		
-		BecomePrimaryAction becomePrimaryAction = new BecomePrimaryAction(dcMetaCache, currentMetaManager, sentinelManager, getXpipeNettyClientKeyedObjectPool(), newMasterChooser, scheduled, executors);
-		
-		PrimaryDcChangeMessage message = becomePrimaryAction.changePrimaryDc(getClusterId(), getShardId(), newPrimaryDc);
+		BecomePrimaryAction becomePrimaryAction = new BecomePrimaryAction(dcMetaCache, currentMetaManager, sentinelManager, offsetWaiter, new ExecutionLog(getTestName()), getXpipeNettyClientKeyedObjectPool(), newMasterChooser, scheduled, executors);
+		PrimaryDcChangeMessage message = becomePrimaryAction.changePrimaryDc(getClusterId(), getShardId(), newPrimaryDc, new MasterInfo());
 		
 		logger.info("{}", message);
 	}

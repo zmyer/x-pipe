@@ -1,39 +1,58 @@
 package com.ctrip.xpipe.redis.keeper.simple;
 
-import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.IOException;
-import java.net.InetAddress;
-import java.net.InetSocketAddress;
-import java.net.InterfaceAddress;
-import java.net.NetworkInterface;
-import java.net.Socket;
-import java.net.SocketAddress;
-import java.net.SocketException;
-import java.util.Calendar;
-import java.util.Enumeration;
-import java.util.List;
-
+import com.alibaba.fastjson.JSON;
+import com.ctrip.xpipe.redis.core.AbstractRedisTest;
+import com.ctrip.xpipe.redis.core.store.ReplicationStoreMeta;
+import com.ctrip.xpipe.simpleserver.Server;
+import com.dianping.cat.Cat;
+import com.dianping.cat.message.Transaction;
 import org.junit.Assert;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.alibaba.fastjson.JSON;
-import com.ctrip.xpipe.AbstractTest;
-import com.ctrip.xpipe.redis.core.store.ReplicationStoreMeta;
-import com.ctrip.xpipe.simpleserver.Server;
-import com.dianping.cat.Cat;
-import com.dianping.cat.message.Transaction;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.net.*;
+import java.util.Calendar;
+import java.util.Enumeration;
+import java.util.List;
+import java.util.function.Function;
 
 /**
  * @author wenchao.meng
  *
  *         May 18, 2016 4:44:03 PM
  */
-public class SimpleTest extends AbstractTest {
+public class SimpleTest extends AbstractRedisTest {
 
 	private Logger logger = LoggerFactory.getLogger(getClass());
+
+	@Test
+	public void testServer() throws Exception {
+
+		Server server = startServer(6379, new Function<String, String>() {
+			@Override
+			public String apply(String request) {
+
+				if(request == null){
+					return null;
+				}
+
+				if(request.equalsIgnoreCase("PING")){
+					return "+PONG\r\n";
+				}
+
+				if(request.indexOf("SYNC") >= 0){
+					return "-ERRORXX\r\n";
+				}
+				return "+OK\r\n";
+			}
+		});
+
+		waitForAnyKey();
+	}
 
 	@Test
 	public void test() throws FileNotFoundException {

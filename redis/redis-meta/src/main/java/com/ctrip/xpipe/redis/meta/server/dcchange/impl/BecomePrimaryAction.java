@@ -1,32 +1,31 @@
 package com.ctrip.xpipe.redis.meta.server.dcchange.impl;
 
 
+import com.ctrip.xpipe.api.command.Command;
+import com.ctrip.xpipe.api.pool.SimpleObjectPool;
+import com.ctrip.xpipe.endpoint.HostPort;
+import com.ctrip.xpipe.netty.commands.NettyClient;
+import com.ctrip.xpipe.pool.XpipeNettyClientKeyedObjectPool;
+import com.ctrip.xpipe.redis.core.entity.RedisMeta;
+import com.ctrip.xpipe.redis.core.meta.MetaUtils;
+import com.ctrip.xpipe.redis.core.metaserver.MetaServerConsoleService.PrimaryDcChangeMessage;
+import com.ctrip.xpipe.redis.core.protocal.cmd.DefaultSlaveOfCommand;
+import com.ctrip.xpipe.redis.core.protocal.pojo.MasterInfo;
+import com.ctrip.xpipe.redis.meta.server.dcchange.*;
+import com.ctrip.xpipe.redis.meta.server.dcchange.exception.ChooseNewMasterFailException;
+import com.ctrip.xpipe.redis.meta.server.dcchange.exception.MakeRedisMasterFailException;
+import com.ctrip.xpipe.redis.meta.server.dcchange.exception.MakeRedisSlaveOfMasterFailException;
+import com.ctrip.xpipe.redis.meta.server.job.DefaultSlaveOfJob;
+import com.ctrip.xpipe.redis.meta.server.meta.CurrentMetaManager;
+import com.ctrip.xpipe.redis.meta.server.meta.DcMetaCache;
+import com.ctrip.xpipe.tuple.Pair;
+import com.ctrip.xpipe.utils.ObjectUtils;
+
 import java.net.InetSocketAddress;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.*;
-
-import com.ctrip.xpipe.redis.core.meta.MetaUtils;
-import com.ctrip.xpipe.utils.StringUtil;
-import org.unidal.tuple.Pair;
-
-import com.ctrip.xpipe.api.command.Command;
-import com.ctrip.xpipe.api.pool.SimpleObjectPool;
-import com.ctrip.xpipe.netty.commands.NettyClient;
-import com.ctrip.xpipe.pool.XpipeNettyClientKeyedObjectPool;
-import com.ctrip.xpipe.redis.core.entity.RedisMeta;
-import com.ctrip.xpipe.redis.core.metaserver.MetaServerConsoleService.PrimaryDcChangeMessage;
-import com.ctrip.xpipe.redis.core.protocal.cmd.DefaultSlaveOfCommand;
-import com.ctrip.xpipe.redis.meta.server.dcchange.NewMasterChooser;
-import com.ctrip.xpipe.redis.meta.server.dcchange.RedisReadonly;
-import com.ctrip.xpipe.redis.meta.server.dcchange.SentinelManager;
-import com.ctrip.xpipe.redis.meta.server.dcchange.exception.ChooseNewMasterFailException;
-import com.ctrip.xpipe.redis.meta.server.dcchange.exception.MakeRedisMasterFailException;
-import com.ctrip.xpipe.redis.meta.server.job.DefaultSlaveOfJob;
-import com.ctrip.xpipe.redis.meta.server.meta.CurrentMetaManager;
-import com.ctrip.xpipe.redis.meta.server.meta.DcMetaCache;
-import com.ctrip.xpipe.utils.ObjectUtils;
 
 /**
  * @author wenchao.meng
@@ -36,20 +35,26 @@ import com.ctrip.xpipe.utils.ObjectUtils;
 public class BecomePrimaryAction extends AbstractChangePrimaryDcAction{
 
 	private NewMasterChooser newMasterChooser;
+	private OffsetWaiter offsetWaiter;
 
-	public BecomePrimaryAction(DcMetaCache dcMetaCache, CurrentMetaManager currentMetaManager, SentinelManager sentinelManager, XpipeNettyClientKeyedObjectPool keyedObjectPool, NewMasterChooser newMasterChooser, ScheduledExecutorService scheduled, Executor executors) {
-		super(dcMetaCache, currentMetaManager, sentinelManager, keyedObjectPool, scheduled, executors);
+	public BecomePrimaryAction(DcMetaCache dcMetaCache, CurrentMetaManager currentMetaManager, SentinelManager sentinelManager, OffsetWaiter offsetWaiter, ExecutionLog executionLog,
+							   XpipeNettyClientKeyedObjectPool keyedObjectPool, NewMasterChooser newMasterChooser, ScheduledExecutorService scheduled, Executor executors) {
+		super(dcMetaCache, currentMetaManager, sentinelManager, executionLog, keyedObjectPool, scheduled, executors);
 		this.newMasterChooser = newMasterChooser;
+		this.offsetWaiter = offsetWaiter;
 	}
 
-	protected PrimaryDcChangeMessage doChangePrimaryDc(String clusterId, String shardId, String newPrimaryDc) {
+	protected PrimaryDcChangeMessage doChangePrimaryDc(String clusterId, String shardId, String newPrimaryDc, MasterInfo masterInfo) {
 		
 		doChangeMetaCache(clusterId, shardId, newPrimaryDc);
 		
 		executionLog.info(String.format("[chooseNewMaster][begin]"));
 		Pair<String, Integer> newMaster = chooseNewMaster(clusterId, shardId);
 		executionLog.info(String.format("[chooseNewMaster]%s:%d", newMaster.getKey(), newMaster.getValue()));
-		
+
+		//wait for slave to achieve master offset
+		offsetWaiter.tryWaitfor(new HostPort(newMaster.getKey(), newMaster.getValue()), masterInfo, executionLog);
+
 		List<RedisMeta> slaves = getAllSlaves(newMaster, dcMetaCache.getShardRedises(clusterId, shardId));
 		
 		makeRedisesOk(newMaster, slaves);
@@ -67,8 +72,7 @@ public class BecomePrimaryAction extends AbstractChangePrimaryDcAction{
 	protected void changeSentinel(String clusterId, String shardId, Pair<String, Integer> newMaster) {
 		
 		try{
-			RedisMeta redisMaster = new RedisMeta().setIp(newMaster.getKey()).setPort(newMaster.getValue());
-			sentinelManager.addSentinel(clusterId, shardId, redisMaster, executionLog);
+			sentinelManager.addSentinel(clusterId, shardId, HostPort.fromPair(newMaster), executionLog);
 		}catch(Exception e){
 			executionLog.error("[addSentinel][fail]" + e.getMessage());
 			logger.error("[addSentinel]" + clusterId + "," + shardId, e);
@@ -104,7 +108,7 @@ public class BecomePrimaryAction extends AbstractChangePrimaryDcAction{
 		} catch (InterruptedException | ExecutionException | TimeoutException e) {
 			logger.error("[makeRedisesOk]" + slaves + "->" + newMaster, e);
 			executionLog.error("[make slaves slaveof][fail]" + e.getMessage());
-			//go on
+			throw new MakeRedisSlaveOfMasterFailException(String.format("fail make slaves slave of:%s, %s", newMaster, e.getMessage()), e);
 		}
 	}
 

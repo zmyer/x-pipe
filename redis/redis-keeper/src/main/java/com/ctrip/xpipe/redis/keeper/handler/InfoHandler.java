@@ -1,19 +1,15 @@
 package com.ctrip.xpipe.redis.keeper.handler;
 
-import java.util.Set;
-
 import com.ctrip.xpipe.api.server.Server;
 import com.ctrip.xpipe.redis.core.protocal.RedisProtocol;
 import com.ctrip.xpipe.redis.core.protocal.protocal.BulkStringParser;
 import com.ctrip.xpipe.redis.core.store.MetaStore;
 import com.ctrip.xpipe.redis.core.store.ReplicationStore;
 import com.ctrip.xpipe.redis.core.store.ReplicationStoreMeta;
-import com.ctrip.xpipe.redis.keeper.KeeperRepl;
-import com.ctrip.xpipe.redis.keeper.RedisClient;
-import com.ctrip.xpipe.redis.keeper.RedisKeeperServer;
-import com.ctrip.xpipe.redis.keeper.RedisMaster;
-import com.ctrip.xpipe.redis.keeper.RedisSlave;
+import com.ctrip.xpipe.redis.keeper.*;
 import com.ctrip.xpipe.utils.StringUtil;
+
+import java.util.Set;
 
 /**
  * @author wenchao.meng
@@ -21,6 +17,7 @@ import com.ctrip.xpipe.utils.StringUtil;
  * 2016年4月22日 下午3:51:33
  */
 public class InfoHandler extends AbstractCommandHandler{
+
 
 	@Override
 	public String[] getCommands() {
@@ -87,7 +84,7 @@ public class InfoHandler extends AbstractCommandHandler{
 
 			sb.append("# Replication" + RedisProtocol.CRLF);
 			sb.append("role:" + Server.SERVER_ROLE.SLAVE + RedisProtocol.CRLF);
-			sb.append("keeperrole:" + redisKeeperServer.role() + RedisProtocol.CRLF);
+			sb.append(RedisProtocol.KEEPER_ROLE_PREFIX + ":" + redisKeeperServer.role() + RedisProtocol.CRLF);
 			sb.append("state:" + redisKeeperServer.getRedisKeeperServerState().keeperState() + RedisProtocol.CRLF);
 			RedisMaster redisMaster =  redisKeeperServer.getRedisMaster();
 			String masterHost = redisMaster == null ? null: redisMaster.masterEndPoint().getHost();

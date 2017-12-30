@@ -1,9 +1,9 @@
 package com.ctrip.xpipe.redis.core.meta;
 
+import com.ctrip.xpipe.redis.core.meta.comparator.ConfigChanged;
+
 import java.util.List;
 import java.util.Set;
-
-import com.ctrip.xpipe.redis.core.meta.comparator.ConfigChanged;
 
 /**
  * @author wenchao.meng
@@ -28,7 +28,8 @@ public interface MetaComparator<T, C extends Enum<C>> {
 	 * @return
 	 */
 	int totalChangedCount();
-	
+
+	String idDesc();
 	
 	void accept(MetaComparatorVisitor<T> visitor);
 }

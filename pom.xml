@@ -27,29 +27,38 @@
         <jersey.version>2.19</jersey.version>
         <commons-exec.version>1.3</commons-exec.version>
         <unidal.version>2.5.0</unidal.version>
-        <unidal.jdbc.version>2.4.1</unidal.jdbc.version>
-        <unidal.codegen.version>2.4.2</unidal.codegen.version>
-        <unidal.plexus.version>2.4.2</unidal.plexus.version>
+
+        <unidal.foundation.version>3.1.2</unidal.foundation.version>
+        <unidal.jdbc.version>3.1.2</unidal.jdbc.version>
+
+        <unidal.codegen.version>2.5.8</unidal.codegen.version>
+        <unidal.plexus.version>2.5.8</unidal.plexus.version>
         <commons-pool.version>2.3</commons-pool.version>
-        <commons-lang.version>3.4</commons-lang.version>
+        <commons-lang3.version>3.4</commons-lang3.version>
         <commons-httpclient.version>4.5.2</commons-httpclient.version>
         <spring-boot.version>1.4.3.RELEASE</spring-boot.version>
         <spring-boot-maven-plugin.version>1.4.3.RELEASE</spring-boot-maven-plugin.version>
         <spring-platfrom-bom.version>2.0.5.RELEASE</spring-platfrom-bom.version>
-        <ctrip-framework-foundation.version>1.4.1</ctrip-framework-foundation.version>
-        <ctrip-apollo.version>0.2.0</ctrip-apollo.version>
-        <cat.version>2.7.3</cat.version>
-        <apollo.sso.ctrip.version>1.1.0</apollo.sso.ctrip.version>
+        <ctrip-framework-foundation.version>1.7.1</ctrip-framework-foundation.version>
+        <ctrip-apollo.version>0.6.5</ctrip-apollo.version>
+        <cat.version>2.9.2</cat.version>
         <lettuce.version>4.3.2.Final</lettuce.version>
         <pyrolite.version>4.9</pyrolite.version>
-        <hickwall.version>1.0</hickwall.version>
-        <hickwall.client.version>1.4</hickwall.client.version>
-        <plexus-utils.version>3.0.24</plexus-utils.version>
+        <plexus-utils.version>3.1.0</plexus-utils.version>
         <git-commit-id-plugin.version>2.2.0</git-commit-id-plugin.version>
         <log4j2.version>2.6.2</log4j2.version>
         <disruptor.version>3.3.6</disruptor.version>
         <dnsjava.version>2.1.6</dnsjava.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+
+        <hickwall.client.version>1.8</hickwall.client.version>
+        <clogging.version>4.1.8</clogging.version>
+        <credis.version>2.5.3</credis.version>
+        <qconfig.sso.version>1.0.7-SNAPSHOT</qconfig.sso.version>
+        <qunaer.common.version>9.0.9</qunaer.common.version>
+        <qconfig.client.version>1.4.4</qconfig.client.version>
+        <qtracer.version>1.2.4</qtracer.version>
+        <netty3.version>3.10.5.Final</netty3.version>
     </properties>
 
     <modules>
@@ -60,20 +69,79 @@
 
     <dependencyManagement>
         <dependencies>
+            <!-- qconfig sso -->
             <dependency>
-                <groupId>com.ctrip.framework</groupId>
-                <artifactId>framework-foundation</artifactId>
-                <version>${ctrip-framework-foundation.version}</version>
+                <groupId>com.ctrip.infosec</groupId>
+                <artifactId>sso-client-qconfig</artifactId>
+                <version>1.0.7-SNAPSHOT</version>
+                <exclusions>
+                    <exclusion>
+                        <groupId>com.ctrip.framework</groupId>
+                        <artifactId>vi</artifactId>
+                    </exclusion>
+                </exclusions>
+            </dependency>
+            <dependency>
+                <groupId>qunar.common</groupId>
+                <artifactId>common-api</artifactId>
+                <version>${qunaer.common.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>qunar.common</groupId>
+                <artifactId>common-concurrent</artifactId>
+                <version>${qunaer.common.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>qunar.tc.qconfig</groupId>
+                <artifactId>qconfig-client</artifactId>
+                <version>${qconfig.client.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>qunar.tc.qtracer</groupId>
+                <artifactId>qtracer-client</artifactId>
+                <version>${qtracer.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>qunar.tc.qtracer</groupId>
+                <artifactId>qtracer-common</artifactId>
+                <version>${qtracer.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>qunar.tc.qtracer</groupId>
+                <artifactId>qtracer-instrument-agent</artifactId>
+                <version>${qtracer.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>qunar.tc.qtracer</groupId>
+                <artifactId>qtracer-instrument-http</artifactId>
+                <version>${qtracer.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>qunar.tc.qtracer</groupId>
+                <artifactId>qtracer-instrument-annotation</artifactId>
+                <version>${qtracer.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>qunar.tc.qtracer</groupId>
+                <artifactId>qtracer-instrument-lib</artifactId>
+                <version>${qtracer.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.netty</groupId>
+                <artifactId>netty</artifactId>
+                <version>${netty3.version}</version>
+            </dependency>
+
+
+            <dependency>
+                <groupId>org.unidal.framework</groupId>
+                <artifactId>foundation-service</artifactId>
+                <version>${unidal.foundation.version}</version>
             </dependency>
             <dependency>
                 <groupId>com.ctrip.framework.apollo</groupId>
                 <artifactId>apollo-client</artifactId>
                 <version>${ctrip-apollo.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.ctrip.framework.apollo-sso</groupId>
-                <artifactId>apollo-sso-ctrip</artifactId>
-                <version>${apollo.sso.ctrip.version}</version>
             </dependency>
             <!-- xpipe related -->
             <dependency>
@@ -132,8 +200,46 @@
                 <artifactId>local-service</artifactId>
                 <version>${project.version}</version>
             </dependency>
-
             <!-- xpipe related -->
+
+            <!--  ctrip related -->
+            <dependency>
+                <groupId>com.ctrip.framework</groupId>
+                <artifactId>framework-foundation</artifactId>
+                <version>${ctrip-framework-foundation.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.ctrip.framework.clogging</groupId>
+                <artifactId>clogging-agent</artifactId>
+                <version>${clogging.version}</version>
+                <exclusions>
+                    <exclusion>
+                        <groupId>com.ctrip.framework</groupId>
+                        <artifactId>vi</artifactId>
+                    </exclusion>
+                </exclusions>
+            </dependency>
+            <dependency>
+                <groupId>com.ctrip.hickwall</groupId>
+                <artifactId>client</artifactId>
+                <version>${hickwall.client.version}</version>
+                <exclusions>
+                    <exclusion>
+                        <groupId>org.slf4j</groupId>
+                        <artifactId>slf4j-simple</artifactId>
+                    </exclusion>
+                    <exclusion>
+                        <groupId>com.ctrip.framework</groupId>
+                        <artifactId>vi</artifactId>
+                    </exclusion>
+                </exclusions>
+            </dependency>
+            <dependency>
+                <groupId>com.ctrip.credis</groupId>
+                <artifactId>credis</artifactId>
+                <version>${credis.version}</version>
+            </dependency>
+
             <dependency>
                 <groupId>dnsjava</groupId>
                 <artifactId>dnsjava</artifactId>
@@ -148,16 +254,6 @@
                 <groupId>net.razorvine</groupId>
                 <artifactId>pyrolite</artifactId>
                 <version>${pyrolite.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.ctrip.hickwall</groupId>
-                <artifactId>hickwall-protocol</artifactId>
-                <version>${hickwall.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.ctrip.hickwall</groupId>
-                <artifactId>client</artifactId>
-                <version>${hickwall.client.version}</version>
             </dependency>
             <dependency>
                 <groupId>commons-io</groupId>
@@ -203,7 +299,7 @@
             <dependency>
                 <groupId>org.apache.commons</groupId>
                 <artifactId>commons-lang3</artifactId>
-                <version>${commons-lang.version}</version>
+                <version>${commons-lang3.version}</version>
             </dependency>
             <dependency>
                 <groupId>io.spring.platform</groupId>
@@ -470,6 +566,14 @@
                         <exclusion>
                             <groupId>org.mortbay.jetty</groupId>
                             <artifactId>servlet-api-2.5</artifactId>
+                        </exclusion>
+                        <exclusion>
+                            <groupId>org.mortbay.jetty</groupId>
+                            <artifactId>jetty</artifactId>
+                        </exclusion>
+                        <exclusion>
+                            <groupId>org.mortbay.jetty</groupId>
+                            <artifactId>jetty-util</artifactId>
                         </exclusion>
                     </exclusions>
                 </dependency>

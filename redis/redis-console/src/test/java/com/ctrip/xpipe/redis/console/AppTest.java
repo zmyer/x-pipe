@@ -1,42 +1,60 @@
 package com.ctrip.xpipe.redis.console;
 
-import java.io.IOException;
-import java.sql.SQLException;
-
 import com.ctrip.xpipe.monitor.CatConfig;
 import com.ctrip.xpipe.redis.console.cluster.ConsoleLeaderElector;
 import com.ctrip.xpipe.redis.console.config.impl.DefaultConsoleConfig;
+import com.ctrip.xpipe.redis.console.health.HealthChecker;
+import com.ctrip.xpipe.spring.AbstractProfile;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Test;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
-import com.ctrip.xpipe.redis.console.health.HealthChecker;
-import com.ctrip.xpipe.spring.AbstractProfile;
+import java.io.IOException;
+import java.sql.SQLException;
 
 /**
  * @author lepdou 2016-11-09
  */
 @SpringBootApplication
-public class AppTest extends AbstractConsoleH2DbTest {
+@EnableScheduling
+public class AppTest extends AbstratAppTest {
 
+	@BeforeClass
+	public static void beforeAppTestClass() {
+		System.setProperty(HealthChecker.ENABLED, "true");
+	}
 
 	@Before
 	public void startUp() {
 
-		System.setProperty(AbstractProfile.PROFILE_KEY, AbstractProfile.PROFILE_NAME_TEST);
-		System.setProperty(HealthChecker.ENABLED, "false");
+		System.setProperty(DefaultConsoleConfig.KEY_REDIS_CONF_CHECK_INTERVAL, "15000");
+		System.setProperty(HealthChecker.ENABLED, "true");
 		System.setProperty(CatConfig.CAT_ENABLED_KEY, "false");
+		System.setProperty(DefaultConsoleConfig.KEY_REDIS_CONF_CHECK_INTERVAL, "30000");
+
 	}
 
 
 	@Test
 	public void startConsole8080() throws IOException, SQLException {
 
+//		startH2Server();
 		System.setProperty("server.port", "8080");
-		System.setProperty(DefaultConsoleConfig.KEY_REDIS_CONF_CHECK_INTERVAL, "30000");
 		start();
+
+	}
+
+	@Test
+	public void startConsoleWithHealthCheck8080() throws IOException, SQLException {
+
+		System.setProperty(AbstractProfile.PROFILE_KEY, AbstractProfile.PROFILE_NAME_PRODUCTION);
+		System.setProperty("server.port", "8080");
+		start();
+
 	}
 
 	@Test

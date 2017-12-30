@@ -1,51 +1,40 @@
 package com.ctrip.xpipe.redis.core;
 
 
-
+import com.ctrip.xpipe.AbstractTest;
+import com.ctrip.xpipe.api.pool.SimpleObjectPool;
+import com.ctrip.xpipe.api.server.Server.SERVER_ROLE;
+import com.ctrip.xpipe.foundation.DefaultFoundationService;
+import com.ctrip.xpipe.netty.ByteBufUtils;
+import com.ctrip.xpipe.netty.NettyPoolUtil;
+import com.ctrip.xpipe.netty.commands.NettyClient;
+import com.ctrip.xpipe.redis.core.entity.*;
+import com.ctrip.xpipe.redis.core.meta.MetaClone;
+import com.ctrip.xpipe.redis.core.protocal.cmd.InfoCommand;
+import com.ctrip.xpipe.redis.core.protocal.protocal.BulkStringParser;
+import com.ctrip.xpipe.redis.core.server.FakeRedisServer;
+import com.ctrip.xpipe.redis.core.transform.DefaultSaxParser;
+import com.ctrip.xpipe.tuple.Pair;
+import com.ctrip.xpipe.utils.FileUtils;
+import com.ctrip.xpipe.utils.IpUtils;
+import com.ctrip.xpipe.utils.StringUtil;
+import io.netty.buffer.ByteBuf;
+import org.apache.commons.exec.CommandLine;
+import org.apache.commons.exec.DefaultExecutor;
+import org.apache.commons.exec.ExecuteException;
+import org.junit.Assert;
+import org.junit.Before;
+import org.xml.sax.SAXException;
+import redis.clients.jedis.Jedis;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.InetSocketAddress;
 import java.net.URL;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.Map.Entry;
 import java.util.concurrent.atomic.AtomicLong;
-
-import org.apache.commons.exec.CommandLine;
-import org.apache.commons.exec.DefaultExecutor;
-import org.apache.commons.exec.ExecuteException;
-import org.junit.Assert;
-import org.junit.Before;
-import org.unidal.tuple.Pair;
-import org.xml.sax.SAXException;
-
-import com.ctrip.xpipe.AbstractTest;
-import com.ctrip.xpipe.api.pool.SimpleObjectPool;
-import com.ctrip.xpipe.api.server.Server.SERVER_ROLE;
-import com.ctrip.xpipe.foundation.DefaultFoundationService;
-import com.ctrip.xpipe.netty.NettyPoolUtil;
-import com.ctrip.xpipe.netty.commands.NettyClient;
-import com.ctrip.xpipe.redis.core.entity.ClusterMeta;
-import com.ctrip.xpipe.redis.core.entity.DcMeta;
-import com.ctrip.xpipe.redis.core.entity.KeeperMeta;
-import com.ctrip.xpipe.redis.core.entity.RedisMeta;
-import com.ctrip.xpipe.redis.core.entity.ShardMeta;
-import com.ctrip.xpipe.redis.core.entity.XpipeMeta;
-import com.ctrip.xpipe.redis.core.meta.MetaClone;
-import com.ctrip.xpipe.redis.core.protocal.cmd.InfoCommand;
-import com.ctrip.xpipe.redis.core.server.FakeRedisServer;
-import com.ctrip.xpipe.redis.core.transform.DefaultSaxParser;
-import com.ctrip.xpipe.utils.FileUtils;
-import com.ctrip.xpipe.utils.IpUtils;
-import com.ctrip.xpipe.utils.StringUtil;
-
-import redis.clients.jedis.Jedis;
 
 /**
  * @author wenchao.meng
@@ -131,6 +120,13 @@ public abstract class AbstractRedisTest extends AbstractTest{
 			}
 		}
 		return false;
+	}
+
+	protected String toRedisProtocalString(String str){
+
+		ByteBuf format = new BulkStringParser(str).format();
+		return ByteBufUtils.readToString(format);
+
 	}
 
 	protected void assertRedisEquals(RedisMeta redisMaster, List<RedisMeta> slaves) {

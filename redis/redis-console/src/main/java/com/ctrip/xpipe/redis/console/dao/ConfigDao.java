@@ -1,6 +1,7 @@
 package com.ctrip.xpipe.redis.console.dao;
 
 import com.ctrip.xpipe.redis.console.exception.ServerException;
+import com.ctrip.xpipe.redis.console.model.ConfigModel;
 import com.ctrip.xpipe.redis.console.model.ConfigTbl;
 import com.ctrip.xpipe.redis.console.model.ConfigTblDao;
 import com.ctrip.xpipe.redis.console.model.ConfigTblEntity;
@@ -11,6 +12,7 @@ import org.unidal.dal.jdbc.DalNotFoundException;
 import org.unidal.lookup.ContainerLoader;
 
 import javax.annotation.PostConstruct;
+import java.util.Date;
 
 /**
  * @author wenchao.meng
@@ -42,26 +44,55 @@ public class ConfigDao extends AbstractXpipeConsoleDAO{
         return configTblDao.findByPK(id, ConfigTblEntity.READSET_FULL);
     }
 
-    public synchronized void setKey(String key, String value) throws DalException {
+    public synchronized void setKey(String key, String val) throws DalException {
+        ConfigModel model = new ConfigModel().setKey(key).setVal(val);
+        setConfig(model);
+    }
 
+    public synchronized void setConfig(ConfigModel config) throws DalException {
+
+        setConfig(config, null);
+    }
+
+    public synchronized void setConfigAndUntil(ConfigModel config, Date until) throws DalException {
+        setConfig(config, until);
+    }
+
+    public void setConfig(ConfigModel config, Date until) throws DalException {
+        logger.info("[setConfig] {}: {}", config, until);
         boolean insert = false;
 
         try{
-            getKey(key);
-        }catch (DalNotFoundException e){
+            getKey(config.getKey());
+        } catch (DalException e){
             logger.info("[setKey][not exist, create]{}", e.getMessage());
             insert = true;
         }
 
         ConfigTbl configTbl = new ConfigTbl();
-        configTbl.setKey(key);
-        configTbl.setValue(value);
-        if(!insert) {
-            configTblDao.updateByKey(configTbl, ConfigTblEntity.UPDATESET_FULL);
-        }else{
-            configTblDao.insert(new ConfigTbl().setKey(key).setValue(value).setDesc("insert automatically"));
+        configTbl.setKey(config.getKey());
+        configTbl.setValue(config.getVal());
+        if(config.getUpdateIP() != null) {
+            configTbl.setLatestUpdateIp(config.getUpdateIP());
         }
+        if(config.getUpdateUser() != null) {
+            configTbl.setLatestUpdateUser(config.getUpdateUser());
+        }
+
+        if(until != null) {
+            configTbl.setUntil(until);
+        }
+        if(!insert) {
+            configTblDao.updateValAndUntilByKey(configTbl, ConfigTblEntity.UPDATESET_FULL);
+        }else{
+            configTbl.setDesc("insert automatically");
+            configTblDao.insert(configTbl);
+        }
+        logger.info("[setConfig] config update successfully, as {}", config.toString());
     }
 
+    public ConfigTbl getByKey(String key) throws DalException {
+        return configTblDao.findByKey(key, ConfigTblEntity.READSET_FULL);
+    }
 
 }

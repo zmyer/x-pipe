@@ -1,18 +1,19 @@
 package com.ctrip.xpipe.redis.meta.server.dcchange.impl;
 
-import java.net.InetSocketAddress;
-import java.util.List;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ScheduledExecutorService;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
+import com.ctrip.xpipe.exception.ExceptionUtils;
+import com.ctrip.xpipe.exception.SimpleErrorMessage;
 import com.ctrip.xpipe.pool.XpipeNettyClientKeyedObjectPool;
 import com.ctrip.xpipe.redis.core.entity.Redis;
 import com.ctrip.xpipe.redis.core.entity.RedisMeta;
 import com.ctrip.xpipe.redis.core.protocal.cmd.PingCommand;
 import com.ctrip.xpipe.redis.meta.server.dcchange.HealthChecker;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.net.InetSocketAddress;
+import java.util.List;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ScheduledExecutorService;
 
 /**
  * @author wenchao.meng
@@ -36,17 +37,18 @@ public class AtLeastOneChecker implements HealthChecker{
 	}
 
 	@Override
-	public boolean check() {
-		
+	public SimpleErrorMessage check() {
+
+		StringBuilder sb = new StringBuilder();
 		for(Redis  redis : redises){
-			
 			try {
 				new PingCommand(pool.getKeyPool(new InetSocketAddress(redis.getIp(), redis.getPort())), scheduled).execute().get();
-				return true;
+				return SimpleErrorMessage.success();
 			} catch (InterruptedException | ExecutionException e) {
 				logger.info("[check]", e);
+				sb.append(String.format("%s: %s\r\n", redis.desc(), ExceptionUtils.getRootCause(e).getMessage()));
 			}
 		}
-		return false;
+		return SimpleErrorMessage.fail(sb.toString());
 	}
 }

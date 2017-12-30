@@ -1,7 +1,9 @@
 package com.ctrip.xpipe.redis.console.config.impl;
 
 import com.ctrip.xpipe.config.AbstractConfigBean;
+import com.ctrip.xpipe.redis.console.config.ConsoleConfig;
 import com.ctrip.xpipe.redis.console.config.ConsoleDbConfig;
+import com.ctrip.xpipe.redis.console.service.ConfigService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -17,8 +19,13 @@ public class DefaultConsoleDbConfig extends AbstractConfigBean implements Consol
 
     public static final String KEY_SENTINEL_AUTO_PROCESS = "sentinel.auto.process";
 
+    public static final String KEY_ALERT_SYSTEM_ON = "alert.system.on";
+
     @Autowired
     private DbConfig dbConfig;
+
+    @Autowired
+    private ConfigService configService;
 
     @PostConstruct
     public void postConstruct(){
@@ -28,7 +35,12 @@ public class DefaultConsoleDbConfig extends AbstractConfigBean implements Consol
 
     @Override
     public boolean isSentinelAutoProcess() {
-
-        return getBooleanProperty(KEY_SENTINEL_AUTO_PROCESS, true);
+        return configService.isSentinelAutoProcess();
     }
+
+    @Override
+    public boolean isAlertSystemOn() {
+        return configService.isAlertSystemOn();
+    }
+
 }

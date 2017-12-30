@@ -1,21 +1,21 @@
 package com.ctrip.xpipe.redis.console.health;
 
-import java.util.Collection;
-import java.util.LinkedList;
-import java.util.List;
-
-import javax.annotation.PostConstruct;
-
+import com.ctrip.xpipe.redis.console.config.ConsoleConfig;
 import com.ctrip.xpipe.redis.console.resources.MetaCache;
+import com.ctrip.xpipe.redis.core.entity.DcMeta;
+import com.ctrip.xpipe.utils.XpipeThreadFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
-import com.ctrip.xpipe.redis.console.config.ConsoleConfig;
-import com.ctrip.xpipe.redis.core.entity.DcMeta;
-import com.ctrip.xpipe.utils.XpipeThreadFactory;
+import javax.annotation.PostConstruct;
+import javax.annotation.PreDestroy;
+import java.util.Collection;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 /**
  * @author marsqing
@@ -39,20 +39,32 @@ public class HealthChecker {
 	@Autowired
 	private ConsoleConfig config;
 
+	@Autowired
+	private HealthCheckVisitor healthCheckVisitor;
+
+	private Thread daemonHealthCheckThread;
+
 	@PostConstruct
 	public void start() {
 		log.info("Redis health checker started");
 
-		XpipeThreadFactory.create("RedisHealthChecker", true).newThread(new Runnable() {
+		daemonHealthCheckThread = XpipeThreadFactory.create("RedisHealthChecker", true).newThread(new Runnable() {
+
+			private boolean warmuped = false;
 
 			@Override
 			public void run() {
 
 				while (!Thread.currentThread().isInterrupted()) {
-
 					try {
+						if(!warmuped) {
+							TimeUnit.SECONDS.sleep(2);
+							warmup();
+							warmuped = true;
+							TimeUnit.SECONDS.sleep(2);
+						}
 						List<DcMeta> dcsToCheck = new LinkedList<>(metaCache.getXpipeMeta().getDcs().values());
-						if(dcsToCheck != null){
+						if(!dcsToCheck.isEmpty()){
 							sampleAll(dcsToCheck);
 						}
 					} catch (Throwable e) {
@@ -68,7 +80,24 @@ public class HealthChecker {
 				}
 			}
 
-		}).start();
+		});
+		daemonHealthCheckThread.start();
+	}
+
+	private void warmup() {
+		int period = 2000;
+		try {
+			while(metaCache == null || metaCache.getXpipeMeta() == null) {
+				log.info("[warmup] waiting for metaCache initialized");
+				Thread.sleep(period);
+			}
+			List<DcMeta> dcsToCheck = new LinkedList<>(metaCache.getXpipeMeta().getDcs().values());
+			for(DcMeta dc : dcsToCheck) {
+				dc.accept(healthCheckVisitor);
+			}
+		} catch (Exception e) {
+			log.error("[warmup] error: {}", e);
+		}
 	}
 
 	private void sampleAll(List<DcMeta> dcMetas) {
@@ -91,6 +120,11 @@ public class HealthChecker {
 				}
 			}
 		}
+	}
+
+	@PreDestroy
+	public void preDestroy() {
+		daemonHealthCheckThread.interrupt();
 	}
 
 }

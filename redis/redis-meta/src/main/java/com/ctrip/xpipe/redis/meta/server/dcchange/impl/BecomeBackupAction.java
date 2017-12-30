@@ -1,24 +1,25 @@
 package com.ctrip.xpipe.redis.meta.server.dcchange.impl;
 
-import java.util.List;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Executor;
-import java.util.concurrent.ScheduledExecutorService;
-
-import org.unidal.tuple.Pair;
-
 import com.ctrip.xpipe.api.command.Command;
 import com.ctrip.xpipe.pool.XpipeNettyClientKeyedObjectPool;
 import com.ctrip.xpipe.redis.core.entity.KeeperMeta;
 import com.ctrip.xpipe.redis.core.entity.RedisMeta;
 import com.ctrip.xpipe.redis.core.metaserver.MetaServerConsoleService.PRIMARY_DC_CHANGE_RESULT;
 import com.ctrip.xpipe.redis.core.metaserver.MetaServerConsoleService.PrimaryDcChangeMessage;
+import com.ctrip.xpipe.redis.core.protocal.pojo.MasterInfo;
+import com.ctrip.xpipe.redis.meta.server.dcchange.ExecutionLog;
 import com.ctrip.xpipe.redis.meta.server.dcchange.SentinelManager;
 import com.ctrip.xpipe.redis.meta.server.job.DefaultSlaveOfJob;
 import com.ctrip.xpipe.redis.meta.server.keeper.keepermaster.impl.BackupDcKeeperMasterChooserAlgorithm;
 import com.ctrip.xpipe.redis.meta.server.meta.CurrentMetaManager;
 import com.ctrip.xpipe.redis.meta.server.meta.DcMetaCache;
 import com.ctrip.xpipe.redis.meta.server.multidc.MultiDcService;
+import com.ctrip.xpipe.tuple.Pair;
+
+import java.util.List;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ScheduledExecutorService;
 
 /**
  * @author wenchao.meng
@@ -29,14 +30,15 @@ public class BecomeBackupAction extends AbstractChangePrimaryDcAction{
 
 	private MultiDcService multiDcService;
 	
-	public BecomeBackupAction(DcMetaCache dcMetaCache, CurrentMetaManager currentMetaManager, SentinelManager sentinelManager, XpipeNettyClientKeyedObjectPool keyedObjectPool,
+	public BecomeBackupAction(DcMetaCache dcMetaCache, CurrentMetaManager currentMetaManager, SentinelManager sentinelManager, ExecutionLog executionLog,
+							  XpipeNettyClientKeyedObjectPool keyedObjectPool,
 							  MultiDcService multiDcService, ScheduledExecutorService scheduled, Executor executors) {
-		super(dcMetaCache, currentMetaManager, sentinelManager, keyedObjectPool, scheduled, executors);
+		super(dcMetaCache, currentMetaManager, sentinelManager, executionLog, keyedObjectPool, scheduled, executors);
 		this.multiDcService = multiDcService;
 	}
 	
 	@Override
-	protected PrimaryDcChangeMessage doChangePrimaryDc(String clusterId, String shardId, String newPrimaryDc) {
+	protected PrimaryDcChangeMessage doChangePrimaryDc(String clusterId, String shardId, String newPrimaryDc, MasterInfo masterInfo) {
 		
 		doChangeMetaCache(clusterId, shardId, newPrimaryDc);
 
@@ -69,13 +71,7 @@ public class BecomeBackupAction extends AbstractChangePrimaryDcAction{
 
 	@Override
 	protected void changeSentinel(String clusterId, String shardId, Pair<String, Integer> newMaster) {
-		try{
-			
-			sentinelManager.removeSentinel(clusterId, shardId, executionLog);
-		}catch(Exception e){
-			logger.error("[changeSentinel]" + clusterId + "," + shardId, e);
-			executionLog.error("[changeSentinel]" + e.getMessage());
-		}
+		executionLog.info("[changeSentinel][nothing need to be done]");
 	}
 
 	@Override

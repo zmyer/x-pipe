@@ -1,32 +1,25 @@
 package com.ctrip.xpipe.redis.console.service.impl;
 
-import java.util.Comparator;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.function.Consumer;
-
-import com.ctrip.xpipe.redis.console.annotation.DalTransaction;
+import com.ctrip.xpipe.redis.console.constant.XPipeConsoleConstant;
+import com.ctrip.xpipe.redis.console.dao.RedisDao;
+import com.ctrip.xpipe.redis.console.exception.BadRequestException;
+import com.ctrip.xpipe.redis.console.model.*;
+import com.ctrip.xpipe.redis.console.notifier.ClusterMetaModifiedNotifier;
+import com.ctrip.xpipe.redis.console.query.DalQuery;
 import com.ctrip.xpipe.redis.console.service.*;
 import com.ctrip.xpipe.redis.console.service.exception.ResourceNotFoundException;
+import com.ctrip.xpipe.tuple.Pair;
 import com.ctrip.xpipe.utils.MathUtil;
+import com.ctrip.xpipe.utils.ObjectUtils;
 import com.ctrip.xpipe.utils.StringUtil;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.unidal.dal.jdbc.DalException;
 
-import com.ctrip.xpipe.redis.console.constant.XPipeConsoleConstant;
-import com.ctrip.xpipe.redis.console.dao.RedisDao;
-import com.ctrip.xpipe.redis.console.exception.BadRequestException;
-import com.ctrip.xpipe.redis.console.model.ClusterTbl;
-import com.ctrip.xpipe.redis.console.model.DcClusterShardTbl;
-import com.ctrip.xpipe.redis.console.model.KeepercontainerTbl;
-import com.ctrip.xpipe.redis.console.model.RedisTbl;
-import com.ctrip.xpipe.redis.console.model.RedisTblDao;
-import com.ctrip.xpipe.redis.console.model.RedisTblEntity;
-import com.ctrip.xpipe.redis.console.model.ShardModel;
-import com.ctrip.xpipe.redis.console.notifier.ClusterMetaModifiedNotifier;
-import com.ctrip.xpipe.redis.console.query.DalQuery;
-import org.unidal.tuple.Pair;
+import java.util.Comparator;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.function.Consumer;
 
 
 @Service
@@ -46,7 +39,8 @@ public class RedisServiceImpl extends AbstractConsoleService<RedisTblDao> implem
     private Comparator<RedisTbl> redisComparator = new Comparator<RedisTbl>() {
         @Override
         public int compare(RedisTbl o1, RedisTbl o2) {
-            if (o1.getId() == o2.getId()) {
+            if (o1 != null && o2 != null
+                    && ObjectUtils.equals(o1.getId(), o2.getId())) {
                 return 0;
             }
             return -1;
@@ -64,11 +58,11 @@ public class RedisServiceImpl extends AbstractConsoleService<RedisTblDao> implem
     }
 
     @Override
-    public RedisTbl findWithIpPort(String ip, int port) {
-        return queryHandler.handleQuery(new DalQuery<RedisTbl>() {
+    public List<RedisTbl> findAllRedisWithSameIP(String ip) {
+        return queryHandler.handleQuery(new DalQuery<List<RedisTbl>>() {
             @Override
-            public RedisTbl doQuery() throws DalException {
-                return dao.findWithIpPort(ip, port, RedisTblEntity.READSET_FULL);
+            public List<RedisTbl> doQuery() throws DalException {
+                return dao.findByIp(ip, RedisTblEntity.READSET_IP_AND_PORT);
             }
         });
     }
@@ -184,7 +178,8 @@ public class RedisServiceImpl extends AbstractConsoleService<RedisTblDao> implem
         queryHandler.handleQuery(new DalQuery<int[]>() {
             @Override
             public int[] doQuery() throws DalException {
-                return dao.deleteBatch(keepersByDcClusterShard.toArray(new RedisTbl[0]), RedisTblEntity.UPDATESET_FULL);
+                redisDao.deleteRedisesBatch(keepersByDcClusterShard);
+                return null;
             }
         });
         return keepersByDcClusterShard;
@@ -212,8 +207,13 @@ public class RedisServiceImpl extends AbstractConsoleService<RedisTblDao> implem
         List<RedisTbl> redisTbls = findRedisesByDcClusterShard(dcId, clusterId, shardId);
         List<RedisTbl> toDelete = inter(redisAddresses, redisTbls);
         logger.info("[deleteRedises]{}", toDelete);
-        delete(toDelete.toArray(new RedisTbl[0]));
-
+        queryHandler.handleQuery(new DalQuery<int[]>() {
+            @Override
+            public int[] doQuery() throws DalException {
+                redisDao.deleteRedisesBatch(toDelete);
+                return null;
+            }
+        });
         notifier.notifyClusterUpdate(dcId, clusterId);
     }
 
@@ -223,15 +223,6 @@ public class RedisServiceImpl extends AbstractConsoleService<RedisTblDao> implem
                 .setRedisPort(addr.getValue())
                 .setRedisRole(role)
                 .setRunId("unknown");
-    }
-
-    public void delete(RedisTbl... redises) {
-        queryHandler.handleQuery(new DalQuery<int[]>() {
-            @Override
-            public int[] doQuery() throws DalException {
-                return dao.deleteBatch(redises, RedisTblEntity.UPDATESET_FULL);
-            }
-        });
     }
 
     @Override
@@ -352,7 +343,8 @@ public class RedisServiceImpl extends AbstractConsoleService<RedisTblDao> implem
         return result;
     }
 
-    private void validateKeepers(List<RedisTbl> keepers) {
+    // Use protected for Unit Test available
+    protected void validateKeepers(List<RedisTbl> keepers) {
         if (2 != keepers.size()) {
             if (0 == keepers.size()) {
                 return;
@@ -382,7 +374,8 @@ public class RedisServiceImpl extends AbstractConsoleService<RedisTblDao> implem
                     return dao.findWithIpPort(keeper.getRedisIp(), keeper.getRedisPort(), RedisTblEntity.READSET_FULL);
                 }
             });
-            if (null != redisWithSameConfiguration && !(keeper.getId() == redisWithSameConfiguration.getId())) {
+            if (null != redisWithSameConfiguration
+                    && !ObjectUtils.equals(keeper.getId(), redisWithSameConfiguration.getId())) {
                 throw new BadRequestException("Already in use for keeper's port : "
                         + String.valueOf(redisWithSameConfiguration.getRedisPort()));
             }
@@ -390,7 +383,7 @@ public class RedisServiceImpl extends AbstractConsoleService<RedisTblDao> implem
             // keepercontainer check
             for (RedisTbl originalKeeper : originalKeepers) {
                 if (originalKeeper.getKeepercontainerId() == keeper.getKeepercontainerId()
-                        && originalKeeper.getId() != keeper.getId()) {
+                        && !originalKeeper.getId().equals(keeper.getId())) {
                     throw new BadRequestException("If you wanna change keeper port in same keepercontainer,please delete it first.");
                 }
             }

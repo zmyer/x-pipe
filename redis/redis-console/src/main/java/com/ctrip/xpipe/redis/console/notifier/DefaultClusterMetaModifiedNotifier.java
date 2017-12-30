@@ -1,21 +1,20 @@
 package com.ctrip.xpipe.redis.console.notifier;
 
-import java.util.List;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-
-import javax.annotation.PostConstruct;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
-
 import com.ctrip.xpipe.redis.console.config.ConsoleConfig;
 import com.ctrip.xpipe.redis.console.model.DcTbl;
 import com.ctrip.xpipe.redis.console.service.meta.ClusterMetaService;
 import com.ctrip.xpipe.redis.console.util.MetaServerConsoleServiceManagerWrapper;
 import com.ctrip.xpipe.utils.XpipeThreadFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
+
+import javax.annotation.PostConstruct;
+import javax.annotation.PreDestroy;
+import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 /**
  * @author shyin
@@ -41,6 +40,13 @@ public class DefaultClusterMetaModifiedNotifier implements ClusterMetaModifiedNo
 		fixedThreadPool = Executors.newFixedThreadPool(config.getConsoleNotifyThreads(),
 				XpipeThreadFactory.create("ConsoleNotifierThreadPool"));
 		retryPolicy = new MetaNotifyRetryPolicy(config.getConsoleNotifyRetryInterval());
+	}
+
+	@PreDestroy
+	public void shutdown() {
+		if(fixedThreadPool != null) {
+			fixedThreadPool.shutdownNow();
+		}
 	}
 
 	@Override

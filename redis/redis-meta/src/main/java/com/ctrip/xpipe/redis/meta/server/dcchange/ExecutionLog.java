@@ -1,9 +1,8 @@
 package com.ctrip.xpipe.redis.meta.server.dcchange;
 
+import com.ctrip.xpipe.utils.LogUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import com.ctrip.xpipe.utils.LogUtils;
 
 /**
  * @author wenchao.meng
@@ -15,6 +14,10 @@ public class ExecutionLog {
 	private static Logger logger = LoggerFactory.getLogger(ExecutionLog.class);
 	
 	private StringBuilder log = new StringBuilder();
+
+	public ExecutionLog(String initMessage){
+		info(initMessage);
+	}
 	
 	public void info(String message){
 		log.append(LogUtils.info(message));

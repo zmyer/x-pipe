@@ -1,22 +1,9 @@
 package com.ctrip.xpipe.redis.meta.server.dcchange.impl;
 
-import java.net.InetSocketAddress;
-import java.util.List;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ScheduledExecutorService;
-
-import javax.annotation.Resource;
-
-import com.ctrip.xpipe.spring.AbstractSpringConfigContext;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
-
 import com.ctrip.xpipe.api.pool.SimpleObjectPool;
+import com.ctrip.xpipe.endpoint.HostPort;
 import com.ctrip.xpipe.netty.commands.NettyClient;
 import com.ctrip.xpipe.pool.XpipeNettyClientKeyedObjectPool;
-import com.ctrip.xpipe.redis.core.entity.RedisMeta;
 import com.ctrip.xpipe.redis.core.protocal.cmd.AbstractSentinelCommand.SentinelAdd;
 import com.ctrip.xpipe.redis.core.protocal.cmd.AbstractSentinelCommand.SentinelRemove;
 import com.ctrip.xpipe.redis.core.protocal.cmd.AbstractSentinelCommand.Sentinels;
@@ -26,8 +13,19 @@ import com.ctrip.xpipe.redis.meta.server.dcchange.SentinelManager;
 import com.ctrip.xpipe.redis.meta.server.dcchange.exception.AddSentinelException;
 import com.ctrip.xpipe.redis.meta.server.meta.DcMetaCache;
 import com.ctrip.xpipe.redis.meta.server.spring.MetaServerContextConfig;
+import com.ctrip.xpipe.spring.AbstractSpringConfigContext;
 import com.ctrip.xpipe.utils.IpUtils;
 import com.ctrip.xpipe.utils.StringUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
+
+import javax.annotation.Resource;
+import java.net.InetSocketAddress;
+import java.util.List;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ScheduledExecutorService;
 
 /**
  * @author wenchao.meng
@@ -61,13 +59,13 @@ public class DefaultSentinelManager implements SentinelManager{
 	}
 	
 	@Override
-	public void addSentinel(String clusterId, String shardId, RedisMeta redisMaster, ExecutionLog executionLog) {
+	public void addSentinel(String clusterId, String shardId, HostPort redisMaster, ExecutionLog executionLog) {
 		
 		String sentinelMonitorName = dcMetaCache.getSentinelMonitorName(clusterId, shardId);
 		String allSentinels = dcMetaCache.getSentinel(clusterId, shardId).getAddress();
 		
 		executionLog.info(String.format("[addSentinel]%s,%s,%s, monitorName:%s, master:%s:%d",
-				clusterId, shardId, allSentinels, sentinelMonitorName, redisMaster.getIp(), redisMaster.getPort()));
+				clusterId, shardId, allSentinels, sentinelMonitorName, redisMaster.getHost(), redisMaster.getPort()));
 		
 		if(checkEmpty(sentinelMonitorName, allSentinels, executionLog)){
 			return;
@@ -86,12 +84,12 @@ public class DefaultSentinelManager implements SentinelManager{
 			
 			InetSocketAddress sentinelAddress =  sentinels.get(i);
 			SimpleObjectPool<NettyClient> clientPool = keyedClientPool.getKeyPool(sentinelAddress);
-			SentinelAdd command = new SentinelAdd(clientPool, sentinelMonitorName, redisMaster.getIp(), redisMaster.getPort(), quorum, scheduled);
+			SentinelAdd command = new SentinelAdd(clientPool, sentinelMonitorName, redisMaster.getHost(), redisMaster.getPort(), quorum, scheduled);
 			try {
 				String result = command.execute().get();
 				executionLog.info(String.format("add to sentinel %s : %s", sentinelAddress, result));
 			} catch (InterruptedException | ExecutionException e) {
-				throw new AddSentinelException(sentinelAddress, clusterId, shardId, redisMaster.getIp(), redisMaster.getPort(), e);
+				throw new AddSentinelException(sentinelAddress, clusterId, shardId, redisMaster.getHost(), redisMaster.getPort(), e);
 			}
 		}
 	}

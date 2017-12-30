@@ -7,7 +7,10 @@ import java.util.Map;
 import java.util.ServiceLoader;
 import java.util.concurrent.ConcurrentHashMap;
 
+import com.ctrip.xpipe.api.email.Email;
+import com.ctrip.xpipe.api.email.EmailService;
 import com.ctrip.xpipe.api.migration.DcMapper;
+import com.ctrip.xpipe.api.organization.Organization;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -64,6 +67,12 @@ public class ServicesUtil {
 
 	public static DcMapper getDcMapperService() {
 		return load(DcMapper.class);
+	}
+
+	public static Organization getOrganizationService() {return load(Organization.class);}
+
+	public static EmailService getEmailService() {
+		return load(EmailService.class);
 	}
 
 	@SuppressWarnings("unchecked")

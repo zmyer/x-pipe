@@ -1,9 +1,11 @@
 package com.ctrip.xpipe.redis.console.health.action;
 
 import com.ctrip.xpipe.concurrent.AbstractExceptionLogTask;
-import com.ctrip.xpipe.metric.HostPort;
+import com.ctrip.xpipe.endpoint.HostPort;
 import com.ctrip.xpipe.observer.AbstractObservable;
 import com.ctrip.xpipe.utils.DateTimeUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -19,8 +21,10 @@ import java.util.function.IntSupplier;
  */
 public class HealthStatus extends AbstractObservable{
 
-    private AtomicLong lastPongTime = new AtomicLong(System.currentTimeMillis());
-    private AtomicLong lastHealthDelayTime = new AtomicLong(System.currentTimeMillis());
+    private static long UNSET_TIME = -1L;
+
+    private AtomicLong lastPongTime = new AtomicLong(UNSET_TIME);
+    private AtomicLong lastHealthDelayTime = new AtomicLong(UNSET_TIME);
 
     private AtomicReference<HEALTH_STATE> state = new AtomicReference<>(HEALTH_STATE.UNKNOWN);
 
@@ -30,6 +34,8 @@ public class HealthStatus extends AbstractObservable{
 
     private final ScheduledExecutorService scheduled;
     private ScheduledFuture<?> future;
+
+    private static Logger delayLogger = LoggerFactory.getLogger(HealthStatus.class.getName() + ".delay");
 
     public HealthStatus(HostPort hostPort, IntSupplier downAfterMilli, IntSupplier healthyDelayMilli, ScheduledExecutorService scheduled){
         this.hostPort = hostPort;
@@ -49,9 +55,13 @@ public class HealthStatus extends AbstractObservable{
             @Override
             protected void doRun() throws Exception {
 
-                long currentTime = System.currentTimeMillis();
-                logger.debug("[checkDown]{} - {} = {} > {}", currentTime, lastHealthDelayTime, currentTime - lastHealthDelayTime.get(), downAfterMilli.getAsInt());
+                if(lastHealthDelayTime.get() < 0){
+                    logger.debug("[last unhealthy time < 0, break]{}, {}", hostPort, lastHealthDelayTime);
+                    return;
+                }
 
+                long currentTime = System.currentTimeMillis();
+                logger.trace("[checkDown]{} - {} = {} > {}", currentTime, lastHealthDelayTime, currentTime - lastHealthDelayTime.get(), downAfterMilli.getAsInt());
                 long downTime = currentTime - lastHealthDelayTime.get();
                 final int  downAfter = downAfterMilli.getAsInt();
 
@@ -71,8 +81,11 @@ public class HealthStatus extends AbstractObservable{
 
     void delay(long delayMilli){
 
-        logger.debug("[delay]{}, {}", hostPort, delayMilli);
-        if(delayMilli >=0 && delayMilli <= healthyDelayMilli.getAsInt()){
+        //first time
+        lastHealthDelayTime.compareAndSet(UNSET_TIME, System.currentTimeMillis());
+
+        delayLogger.debug("{}, {}", hostPort, delayMilli);
+        if(delayMilli >= 0 && delayMilli <= healthyDelayMilli.getAsInt()){
             lastHealthDelayTime.set(System.currentTimeMillis());
             setUp();
         }

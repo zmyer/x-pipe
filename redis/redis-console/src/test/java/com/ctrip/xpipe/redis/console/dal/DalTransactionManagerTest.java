@@ -1,10 +1,7 @@
 package com.ctrip.xpipe.redis.console.dal;
 
-import java.sql.Connection;
-import java.sql.SQLException;
-
-import org.unidal.dal.jdbc.datasource.DataSource;
-
+import com.ctrip.xpipe.redis.console.AbstractConsoleTest;
+import com.ctrip.xpipe.redis.console.dal.XpipeDalTransactionManager.TransactionInfo;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -14,15 +11,15 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.runners.MockitoJUnitRunner;
 import org.unidal.dal.jdbc.DalRuntimeException;
+import org.unidal.dal.jdbc.datasource.DataSource;
 import org.unidal.dal.jdbc.datasource.DataSourceManager;
 import org.unidal.dal.jdbc.mapping.TableProviderManager;
 
-import static org.junit.Assert.*;
-import static org.mockito.Mockito.*;
+import java.sql.Connection;
+import java.sql.SQLException;
 
-import com.ctrip.xpipe.redis.console.AbstractConsoleTest;
-import com.ctrip.xpipe.redis.console.dal.XpipeDalTransactionManager;
-import com.ctrip.xpipe.redis.console.dal.XpipeDalTransactionManager.*;
+import static org.junit.Assert.assertEquals;
+import static org.mockito.Mockito.*;
 
 /**
  * @author shyin
@@ -125,7 +122,7 @@ public class DalTransactionManagerTest extends AbstractConsoleTest{
 	@Test
 	public void testInTransactionExceptionForRollbackTransaction() {
 		dalTM.getThreadLocalTransactionInfo().get().setInTransaction(false);
-		thrown.expectMessage("There is no active transaction open, can't rollback");
+		thrown.expectMessage("There is no active transaction open, can't tryRollback");
 		dalTM.rollbackTransaction();
 	}
 	
@@ -133,7 +130,7 @@ public class DalTransactionManagerTest extends AbstractConsoleTest{
 	public void testInvalidRecursiveLayerForRollbackTransaction() {
 		dalTM.getThreadLocalTransactionInfo().get().setInTransaction(true);
 		dalTM.getThreadLocalTransactionInfo().get().decrRecursiveLayer();
-		thrown.expectMessage("Invalid transaction rollback");
+		thrown.expectMessage("Invalid transaction tryRollback");
 		dalTM.rollbackTransaction();
 	}
 	

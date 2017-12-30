@@ -1,18 +1,19 @@
 package com.ctrip.xpipe.redis.meta.server.dchange.impl;
 
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.mockito.Mock;
-import static org.mockito.Mockito.*;
-import org.mockito.runners.MockitoJUnitRunner;
-
+import com.ctrip.xpipe.endpoint.HostPort;
 import com.ctrip.xpipe.redis.core.entity.RedisMeta;
 import com.ctrip.xpipe.redis.core.entity.SentinelMeta;
 import com.ctrip.xpipe.redis.meta.server.AbstractMetaServerTest;
 import com.ctrip.xpipe.redis.meta.server.dcchange.ExecutionLog;
 import com.ctrip.xpipe.redis.meta.server.dcchange.impl.DefaultSentinelManager;
 import com.ctrip.xpipe.redis.meta.server.meta.DcMetaCache;
+import org.junit.Before;
+import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.mockito.Mock;
+import org.mockito.runners.MockitoJUnitRunner;
+
+import static org.mockito.Mockito.when;
 
 /**
  * @author wenchao.meng
@@ -41,7 +42,7 @@ public class DefaultSentinelManagerTest extends AbstractMetaServerTest{
 	public void beforeDefaultSentinelManagerTest() throws Exception{
 		
 		sentinelManager = new DefaultSentinelManager(dcMetaCache, getXpipeNettyClientKeyedObjectPool());
-		executionLog = new ExecutionLog();
+		executionLog = new ExecutionLog(currentTestName());
 		redisMaster = new RedisMeta().setIp("127.0.0.1").setPort(port);
 		
 		when(dcMetaCache.getSentinelMonitorName(getClusterId(), getShardId())).thenReturn(sentinelMonitorName);
@@ -60,7 +61,7 @@ public class DefaultSentinelManagerTest extends AbstractMetaServerTest{
 	@Test
 	public void testAdd(){
 		
-		sentinelManager.addSentinel(getClusterId(), getShardId(), redisMaster, executionLog);
+		sentinelManager.addSentinel(getClusterId(), getShardId(), new HostPort(redisMaster.getIp(), redisMaster.getPort()), executionLog);
 		logger.info("{}", executionLog.getLog());
 	}
 	

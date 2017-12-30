@@ -1,33 +1,23 @@
 package com.ctrip.xpipe.redis.core.meta.impl;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.Serializable;
-import java.util.*;
-
-import com.ctrip.xpipe.metric.HostPort;
-import org.unidal.tuple.Pair;
-import org.xml.sax.SAXException;
-
-import com.ctrip.xpipe.redis.core.entity.ClusterMeta;
-import com.ctrip.xpipe.redis.core.entity.DcMeta;
-import com.ctrip.xpipe.redis.core.entity.KeeperContainerMeta;
-import com.ctrip.xpipe.redis.core.entity.KeeperMeta;
-import com.ctrip.xpipe.redis.core.entity.MetaServerMeta;
-import com.ctrip.xpipe.redis.core.entity.RedisMeta;
-import com.ctrip.xpipe.redis.core.entity.SentinelMeta;
-import com.ctrip.xpipe.redis.core.entity.ShardMeta;
-import com.ctrip.xpipe.redis.core.entity.XpipeMeta;
-import com.ctrip.xpipe.redis.core.entity.ZkServerMeta;
+import com.ctrip.xpipe.endpoint.HostPort;
+import com.ctrip.xpipe.redis.core.entity.*;
 import com.ctrip.xpipe.redis.core.exception.RedisRuntimeException;
 import com.ctrip.xpipe.redis.core.meta.MetaClone;
 import com.ctrip.xpipe.redis.core.meta.MetaException;
 import com.ctrip.xpipe.redis.core.meta.MetaUtils;
 import com.ctrip.xpipe.redis.core.meta.XpipeMetaManager;
 import com.ctrip.xpipe.redis.core.transform.DefaultSaxParser;
+import com.ctrip.xpipe.tuple.Pair;
 import com.ctrip.xpipe.utils.FileUtils;
 import com.ctrip.xpipe.utils.StringUtil;
 import com.google.common.base.Joiner;
+import org.xml.sax.SAXException;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.Serializable;
+import java.util.*;
 
 /**
  * @author wenchao.meng
@@ -37,14 +27,17 @@ import com.google.common.base.Joiner;
 public class DefaultXpipeMetaManager extends AbstractMetaManager implements XpipeMetaManager{
 	
 	private String fileName = null;
-	protected XpipeMeta xpipeMeta;
-	
-	protected DefaultXpipeMetaManager(){
-		
-	}
+
+	protected final XpipeMeta xpipeMeta;
+	private Map<HostPort, MetaDesc> inverseMap;
 	
 	public DefaultXpipeMetaManager(XpipeMeta xpipeMeta){
 		this.xpipeMeta = xpipeMeta;
+	}
+
+	private DefaultXpipeMetaManager(String fileName) {
+		this.fileName = fileName;
+		xpipeMeta = load(fileName);
 	}
 
 	public static XpipeMetaManager buildFromFile(String fileName){
@@ -55,16 +48,11 @@ public class DefaultXpipeMetaManager extends AbstractMetaManager implements Xpip
 		return new DefaultXpipeMetaManager(xpipeMeta);
 	}
 
-	private DefaultXpipeMetaManager(String fileName) {
-		this.fileName = fileName;
-		load(fileName);
-	}
-	
-	public void load(String fileName) {
+	public XpipeMeta load(String fileName) {
 		
 		try {
 			InputStream ins = FileUtils.getFileInputStream(fileName);
-			xpipeMeta = DefaultSaxParser.parse(ins);
+			return DefaultSaxParser.parse(ins);
 		} catch (SAXException | IOException e) {
 			logger.error("[load]" + fileName, e);
 			throw new IllegalStateException("load " + fileName + " failed!", e);
@@ -247,44 +235,47 @@ public class DefaultXpipeMetaManager extends AbstractMetaManager implements Xpip
 	}
 
 	@Override
-	public ShardMeta findShardMeta(HostPort hostPort) {
+	public MetaDesc findMetaDesc(HostPort hostPort) {
 
-		for(DcMeta dcMeta : xpipeMeta.getDcs().values()){
-			for(ClusterMeta clusterMeta : dcMeta.getClusters().values()){
-				for(ShardMeta shardMeta : clusterMeta.getShards().values()){
-					for(RedisMeta redisMeta : shardMeta.getRedises()){
-						if(redisMeta.equalsWithIpPort(hostPort)){
-							return shardMeta;
-						}
-					}
-					for(KeeperMeta keeperMeta: shardMeta.getKeepers()){
-						if(keeperMeta.equalsWithIpPort(hostPort)){
-							return shardMeta;
-						}
-					}
-				}
+		if(inverseMap != null){
+			return inverseMap.get(hostPort);
+		}
+
+		synchronized (this){
+			if(inverseMap == null){
+				inverseMap = InverseHostPortMapBuilder.build(xpipeMeta);
 			}
 		}
-		return null;
+
+		return inverseMap.get(hostPort);
+	}
+
+	private ShardMeta cloneWithParent(DcMeta dcMeta, ClusterMeta clusterMeta, ShardMeta shardMeta) {
+
+		ShardMeta result = clone(shardMeta);
+		result.setParent(clone(clusterMeta));
+		result.parent().setParent(clone(dcMeta));
+		return result;
 	}
 
 	@Override
 	public Pair<String, RedisMeta> getRedisMaster(String clusterId, String shardId) {
 		
 		for(DcMeta dcMeta : xpipeMeta.getDcs().values()){
-			for(ClusterMeta clusterMeta : dcMeta.getClusters().values()){
-				if(!clusterId.equals(clusterMeta.getId())){
-					continue;
-				}
-				for(ShardMeta shardMeta : clusterMeta.getShards().values()){
-					if(!shardId.equals(shardMeta.getId())){
-						continue;
-					}
-					for(RedisMeta redisMeta : shardMeta.getRedises()){
-						if(redisMeta.isMaster()){
-							return new Pair<>(dcMeta.getId(), clone(redisMeta));
-						}
-					}
+
+			ClusterMeta clusterMeta = dcMeta.findCluster(clusterId);
+			if( clusterMeta == null ){
+				continue;
+			}
+
+			ShardMeta shardMeta = clusterMeta.findShard(shardId);
+			if(shardMeta == null){
+				continue;
+			}
+
+			for(RedisMeta redisMeta : shardMeta.getRedises()){
+				if(redisMeta.isMaster()){
+					return new Pair<>(dcMeta.getId(), clone(redisMeta));
 				}
 			}
 		}

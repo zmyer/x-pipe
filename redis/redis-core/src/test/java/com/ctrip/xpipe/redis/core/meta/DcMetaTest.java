@@ -1,11 +1,11 @@
 package com.ctrip.xpipe.redis.core.meta;
 
-import org.junit.Test;
-
 import com.ctrip.xpipe.api.codec.Codec;
 import com.ctrip.xpipe.codec.JsonCodec;
 import com.ctrip.xpipe.redis.core.AbstractRedisTest;
 import com.ctrip.xpipe.redis.core.entity.DcMeta;
+import com.ctrip.xpipe.redis.core.entity.KeeperMeta;
+import org.junit.Test;
 
 /**
  * @author wenchao.meng
@@ -25,6 +25,20 @@ public class DcMetaTest extends AbstractRedisTest {
 
 		logger.info("[test]{}", dcMeta.getClusters().get("cluster1").parent());
 		logger.info("[test]{}", dcMetaDe.getClusters().get("cluster1").parent());
+	}
+
+
+	@Test
+	public void testKeeper(){
+
+		KeeperMeta keeperMeta = new KeeperMeta().setIp("127.0.0.1").setPort(6379);
+
+		Codec codec = new JsonCodec(true);
+		String keeperMetaDesc = codec.encode(keeperMeta);
+		logger.info("{}", keeperMetaDesc);
+		KeeperMeta keeperMetaDec = codec.decode(keeperMetaDesc, KeeperMeta.class);
+
+		logger.info("{}", keeperMetaDec);
 	}
 
 	@Override

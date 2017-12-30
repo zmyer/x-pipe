@@ -1,20 +1,21 @@
 package com.ctrip.xpipe.redis.console.aop;
 
-import javax.annotation.PostConstruct;
-
+import com.ctrip.xpipe.redis.console.annotation.DalTransaction;
+import com.ctrip.xpipe.redis.console.config.ConsoleConfig;
+import com.ctrip.xpipe.redis.console.exception.ServerException;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
 import org.aspectj.lang.annotation.Pointcut;
 import org.codehaus.plexus.component.repository.exception.ComponentLookupException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
-
 import org.unidal.dal.jdbc.transaction.TransactionManager;
 import org.unidal.lookup.ContainerLoader;
 
-import com.ctrip.xpipe.redis.console.config.ConsoleConfig;
-import com.ctrip.xpipe.redis.console.exception.ServerException;
+import javax.annotation.PostConstruct;
 
 
 /**
@@ -25,15 +26,21 @@ import com.ctrip.xpipe.redis.console.exception.ServerException;
 @Aspect
 @Component
 public class DalTransactionAspect {
+
+	private static final String ROLE_HINT = "xpipe";
+
 	private TransactionManager transactionManager;
-	
+
+	private static Logger logger = LoggerFactory.getLogger(DalTransaction.class);
+
 	@Autowired
 	private ConsoleConfig config;
 	
 	@PostConstruct
 	private void postConstruct() {
 		try {
-			transactionManager = ContainerLoader.getDefaultContainer().lookup(TransactionManager.class);
+			transactionManager = ContainerLoader.getDefaultContainer().lookup(TransactionManager.class, ROLE_HINT);
+			logger.info("[postConstruct]Load TransactionManager: {}", transactionManager.getClass());
 		} catch (ComponentLookupException e) {
 			throw new ServerException("Cannot find transaction manager.",e);
 		}
@@ -49,6 +56,7 @@ public class DalTransactionAspect {
 		if(null == datasource) {
 			throw new ServerException("Cannot fetch datasource.");
 		}
+		logger.info("[invokeDalTransactionMethod] TransactionManager: {}", transactionManager.getClass());
 		transactionManager.startTransaction(datasource);
 		
 		Object result;

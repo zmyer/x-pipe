@@ -2,6 +2,7 @@ package com.ctrip.xpipe.utils;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.function.Function;
 
@@ -11,6 +12,16 @@ import java.util.function.Function;
  *         2016年3月28日 下午6:46:26
  */
 public class StringUtil {
+
+    public static String subHead(String str, int maxLen){
+
+        if(str == null || str.length() <= maxLen){
+            return str;
+        }
+
+        return str.substring(0, maxLen);
+
+    }
 
     public static String toString(Object obj) {
         if (obj == null) {
@@ -42,7 +53,7 @@ public class StringUtil {
         return join(split, (obj) -> obj == null? "null" : obj.toString(), args);
     }
 
-    public static <T> String join(String split, Function<T, String> function, List<T> args) {
+    public static <T> String join(String split, Function<T, String> function, Collection<T> args) {
         StringBuilder sb = new StringBuilder();
         int i = 0;
 
@@ -171,5 +182,21 @@ public class StringUtil {
         } else {
             sb.append(obj.toString());
         }
+    }
+
+    public static int compareVersion(String version1, String version2) {
+        String[] v1 = version1.split("\\.");
+        String[] v2 = version2.split("\\.");
+        for(int i = 0; i < Math.max(v1.length, v2.length); i++) {
+            int gap = (i < v1.length ? Integer.parseInt(v1[i]) : 0) - (i < v2.length ? Integer.parseInt(v2[i]) : 0);
+            if(gap != 0)    return gap > 0 ? 1 : -1;
+        }
+        return 0;
+    }
+
+    private static final String LINE_SPLITTER = "\\r?\\n";
+
+    public static String[] splitByLineRemoveEmpty(String str) {
+        return splitRemoveEmpty(LINE_SPLITTER, str);
     }
 }

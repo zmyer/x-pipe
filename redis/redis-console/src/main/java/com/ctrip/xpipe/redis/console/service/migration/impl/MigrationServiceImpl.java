@@ -1,33 +1,34 @@
 package com.ctrip.xpipe.redis.console.service.migration.impl;
 
-import java.rmi.ServerException;
-import java.util.Date;
-import java.util.List;
-
-import javax.annotation.PostConstruct;
-
-import com.ctrip.xpipe.api.monitor.EventMonitor;
+import com.ctrip.xpipe.redis.console.alert.ALERT_TYPE;
+import com.ctrip.xpipe.redis.console.alert.AlertManager;
 import com.ctrip.xpipe.redis.console.dao.MigrationClusterDao;
+import com.ctrip.xpipe.redis.console.dao.MigrationEventDao;
+import com.ctrip.xpipe.redis.console.migration.manager.MigrationEventManager;
 import com.ctrip.xpipe.redis.console.migration.model.MigrationCluster;
 import com.ctrip.xpipe.redis.console.migration.model.MigrationEvent;
 import com.ctrip.xpipe.redis.console.migration.status.MigrationStatus;
 import com.ctrip.xpipe.redis.console.model.*;
+import com.ctrip.xpipe.redis.console.query.DalQuery;
+import com.ctrip.xpipe.redis.console.service.AbstractConsoleService;
 import com.ctrip.xpipe.redis.console.service.ClusterService;
 import com.ctrip.xpipe.redis.console.service.DcService;
+import com.ctrip.xpipe.redis.console.service.migration.MigrationService;
 import com.ctrip.xpipe.redis.console.service.migration.exception.ClusterActiveDcNotRequest;
 import com.ctrip.xpipe.redis.console.service.migration.exception.ClusterMigratingNow;
 import com.ctrip.xpipe.redis.console.service.migration.exception.ClusterNotFoundException;
+import com.ctrip.xpipe.redis.console.service.migration.exception.ToIdcNotFoundException;
+import com.ctrip.xpipe.utils.StringUtil;
 import org.codehaus.plexus.component.repository.exception.ComponentLookupException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.unidal.dal.jdbc.DalException;
 import org.unidal.lookup.ContainerLoader;
 
-import com.ctrip.xpipe.redis.console.dao.MigrationEventDao;
-import com.ctrip.xpipe.redis.console.migration.manager.MigrationEventManager;
-import com.ctrip.xpipe.redis.console.query.DalQuery;
-import com.ctrip.xpipe.redis.console.service.AbstractConsoleService;
-import com.ctrip.xpipe.redis.console.service.migration.MigrationService;
+import javax.annotation.PostConstruct;
+import java.rmi.ServerException;
+import java.util.Date;
+import java.util.List;
 
 @Service
 public class MigrationServiceImpl extends AbstractConsoleService<MigrationEventTblDao> implements MigrationService {
@@ -42,10 +43,14 @@ public class MigrationServiceImpl extends AbstractConsoleService<MigrationEventT
     private ClusterService clusterService;
 
     @Autowired
+    private AlertManager alertManager;
+
+    @Autowired
     private DcService dcService;
 
     @Autowired
     private MigrationClusterDao migrationClusterDao;
+
     private MigrationShardTblDao migrationShardTblDao;
 
     @PostConstruct
@@ -110,7 +115,7 @@ public class MigrationServiceImpl extends AbstractConsoleService<MigrationEventT
         }
 
         if (unfinishedByClusterId.size() > 1) {
-            EventMonitor.DEFAULT.logAlertEvent(String.format("[unfinished > 1]%d : %d", unfinishedByClusterId.size(), clusterId));
+            alertManager.alert(String.valueOf(clusterId), null, null, ALERT_TYPE.MIGRATION_MANY_UNFINISHED, String.format("[count]%d", unfinishedByClusterId.size()));
         }
         return unfinishedByClusterId.get(unfinishedByClusterId.size() - 1);
     }
@@ -238,7 +243,7 @@ public class MigrationServiceImpl extends AbstractConsoleService<MigrationEventT
     }
 
     @Override
-    public TryMigrateResult tryMigrate(String clusterName, String fromIdc) throws ClusterNotFoundException, ClusterActiveDcNotRequest, ClusterMigratingNow {
+    public TryMigrateResult tryMigrate(String clusterName, String fromIdc, String toIdc) throws ClusterNotFoundException, ClusterActiveDcNotRequest, ClusterMigratingNow, ToIdcNotFoundException {
 
         ClusterTbl clusterTbl = clusterService.find(clusterName);
         if (clusterTbl == null) {
@@ -261,19 +266,37 @@ public class MigrationServiceImpl extends AbstractConsoleService<MigrationEventT
         List<DcTbl> clusterRelatedDc = dcService.findClusterRelatedDc(clusterName);
         logger.debug("[tryMigrate][clusterRelatedDc]", clusterRelatedDc);
 
-        DcTbl toDc = findToDc(fromIdc, clusterRelatedDc);
+        DcTbl toDc = findToDc(fromIdc, toIdc, clusterRelatedDc);
         return new TryMigrateResult(clusterTbl, activeDc, toDc);
     }
 
-    private DcTbl findToDc(String fromIdc, List<DcTbl> clusterRelatedDc) {
+    protected DcTbl findToDc(String fromIdc, String toIdc, List<DcTbl> clusterRelatedDc) throws ToIdcNotFoundException {
 
-        //simple
-        for (DcTbl dcTbl : clusterRelatedDc) {
-            if (!dcTbl.getDcName().equalsIgnoreCase(fromIdc)) {
-                return dcTbl;
+        if(StringUtil.isEmpty(toIdc)){
+            //simple
+            for (DcTbl dcTbl : clusterRelatedDc) {
+                if (!dcTbl.getDcName().equalsIgnoreCase(fromIdc)) {
+                    return dcTbl;
+                }
             }
+            throw new ToIdcNotFoundException(String.format("fromIdc:%s, toIdc empty, can not find target dc %s", fromIdc, clusterRelatedDcToString(clusterRelatedDc)));
+        }else {
+
+            if(toIdc.equalsIgnoreCase(fromIdc)){
+                throw new ToIdcNotFoundException(String.format("fromIdc:%s equals with toIdc %s", fromIdc, toIdc));
+            }
+
+            for (DcTbl dcTbl : clusterRelatedDc) {
+                if (dcTbl.getDcName().equalsIgnoreCase(toIdc)) {
+                    return dcTbl;
+                }
+            }
+            throw new ToIdcNotFoundException(String.format("toIdc : %s, can not find it in all related dcs:%s", toIdc, clusterRelatedDcToString(clusterRelatedDc)));
         }
-        throw new IllegalStateException("can not find target dc " + fromIdc + "," + clusterRelatedDc);
+    }
+
+    private String clusterRelatedDcToString(List<DcTbl> clusterRelatedDc) {
+        return StringUtil.join(",", (dcTbl) -> dcTbl.getDcName() , clusterRelatedDc);
     }
 
 }

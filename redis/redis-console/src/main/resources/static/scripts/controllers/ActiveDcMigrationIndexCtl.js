@@ -1,30 +1,61 @@
 index_module.controller('ActiveDcMigrationIndexCtl', ['$rootScope', '$scope', '$window', '$stateParams', 'AppUtil', 'toastr', 'NgTableParams', 'ClusterService', 'DcService', 'MigrationService',
-    function ($rootScope, $scope, $window, $stateParams, AppUtil, toastr, NgTableParams, ClusterService, DcService, MigrationService, $filters) {
+    function ($rootScope, $scope, $window, $stateParams, AppUtil, toastr, NgTableParams, ClusterService, DcService, MigrationService) {
 		
 		$scope.sourceDcSelected = sourceDcSelected;
 		$scope.targetDcSelected = targetDcSelected;
 		$scope.availableTargetDcs = availableTargetDcs;
 		$scope.preMigrate = preMigrate;
 		$scope.doMigrate = doMigrate;
+		$scope.clusterOrgNameSelected = clusterOrgNameSelected;
 		
 		init();
-		
+
 		function init() {
 			DcService.loadAllDcs().then(function(data){
 				$scope.dcs = data;
+                ClusterService.getInvolvedOrgs().then(function (result) {
+                        $scope.organizations = result;
+                        $scope.organizations.push({"orgName": "不选择"});
+				});
 			});
 		}
-		
+
+		$scope.clusterOrgName = '';
+		function clusterOrgNameSelected() {
+			var orgName = $scope.clusterOrgName;
+            var dcName = $scope.sourceDc;
+            if(dcName && orgName) {
+            	if(orgName === "不选择") {
+            		sourceDcSelected();
+				} else {
+                    ClusterService.findClustersByActiveDcName(dcName).then(function (data) {
+                        $scope.clusters = data.filter(function (localCluster) {
+                            return localCluster.clusterOrgName === orgName;
+                        });
+                        $scope.tableParams.reload();
+                    });
+                }
+            }
+        }
+
 		function sourceDcSelected() {
 			var dcName = $scope.sourceDc;
-			if(dcName) {
+            var orgName = $scope.clusterOrgName;
+			if(dcName && (!orgName || orgName === "不选择")) {
 				ClusterService.findClustersByActiveDcName(dcName).then(function(data) {
 					$scope.clusters = data;
 					$scope.tableParams.reload();
 				});
+			} else {
+                ClusterService.findClustersByActiveDcName(dcName).then(function (data) {
+                    $scope.clusters = data.filter(function (localCluster) {
+                        return localCluster.clusterOrgName === orgName;
+                    });
+                    $scope.tableParams.reload();
+                });
 			}
 		}
-		
+
 		function targetDcSelected(cluster) {
 			if(cluster.targetDc == "-") {
 				cluster.selected = false;
@@ -128,8 +159,8 @@ index_module.controller('ActiveDcMigrationIndexCtl', ['$rootScope', '$scope', '$
 				});
 			}
 		};
-		
-		
+
+
 		$scope.tableParams = new NgTableParams({
             page : 1,
             count : 10

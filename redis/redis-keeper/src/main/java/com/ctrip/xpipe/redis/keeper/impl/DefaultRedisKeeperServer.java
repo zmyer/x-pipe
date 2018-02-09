@@ -6,11 +6,13 @@ import com.ctrip.xpipe.api.cluster.LeaderElectorManager;
 import com.ctrip.xpipe.api.command.CommandFuture;
 import com.ctrip.xpipe.api.command.CommandFutureListener;
 import com.ctrip.xpipe.api.endpoint.Endpoint;
+import com.ctrip.xpipe.api.monitor.EventMonitor;
 import com.ctrip.xpipe.api.monitor.Task;
 import com.ctrip.xpipe.api.monitor.TransactionMonitor;
 import com.ctrip.xpipe.api.observer.Observable;
 import com.ctrip.xpipe.api.observer.Observer;
 import com.ctrip.xpipe.cluster.ElectContext;
+import com.ctrip.xpipe.concurrent.LongTimeAlertTask;
 import com.ctrip.xpipe.endpoint.DefaultEndPoint;
 import com.ctrip.xpipe.exception.XpipeRuntimeException;
 import com.ctrip.xpipe.lifecycle.LifecycleHelper;
@@ -51,12 +53,10 @@ import io.netty.handler.logging.LoggingHandler;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.Date;
-import java.util.HashSet;
-import java.util.Map;
+import java.util.*;
 import java.util.Map.Entry;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -68,7 +68,16 @@ import java.util.concurrent.atomic.AtomicReference;
  * 2016年3月24日 下午2:08:26
  */
 public class DefaultRedisKeeperServer extends AbstractRedisServer implements RedisKeeperServer{
-	
+
+	private static final int DEFAULT_SCHEDULED_CORE_POOL_SIZE = 1;
+	private static final int DEFAULT_BOSS_EVENT_LOOP_SIZE = 1;
+	private static final int DEFAULT_MASTER_EVENT_LOOP_SIZE = 2;
+	public static String KEY_DEFAULT_KEEPER_WORKER_GROUP_THREAD_COUNT = "DEFAULT_KEEPER_WORKER_GROUP_THREAD_COUNT";
+	public static int DEFAULT_KEEPER_WORKER_GROUP_THREAD_COUNT = Integer.parseInt(System.getProperty(KEY_DEFAULT_KEEPER_WORKER_GROUP_THREAD_COUNT, "5"));
+	private static final int DEFAULT_LONG_TIME_ALERT_TASK_MILLI = 1000;
+
+
+
 	/**
 	 * when keeper is active, it's redis master, else it's another keeper
 	 */
@@ -82,13 +91,13 @@ public class DefaultRedisKeeperServer extends AbstractRedisServer implements Red
 	
     private EventLoopGroup bossGroup ;
     private EventLoopGroup workerGroup;
-    
-    public static String KEY_DEFAULT_KEEPER_WORKER_GROUP_THREAD_COUNT = "DEFAULT_KEEPER_WORKER_GROUP_THREAD_COUNT";
-    public static int DEFAULT_KEEPER_WORKER_GROUP_THREAD_COUNT = Integer.parseInt(System.getProperty(KEY_DEFAULT_KEEPER_WORKER_GROUP_THREAD_COUNT, "5"));   
+    private NioEventLoopGroup masterEventLoopGroup;
+
 
 	private Map<Channel, RedisClient>  redisClients = new ConcurrentHashMap<Channel, RedisClient>();
 	
 	private ScheduledExecutorService scheduled;
+	private ExecutorService clientExecutors;
 	
 	private final String clusterId, shardId;
 	
@@ -138,14 +147,19 @@ public class DefaultRedisKeeperServer extends AbstractRedisServer implements Red
 	@Override
 	protected void doInitialize() throws Exception {
 		super.doInitialize();
-		scheduled = Executors.newScheduledThreadPool(OsUtils.getCpuCount(), ClusterShardAwareThreadFactory.create(clusterId, shardId, String.format("keeper:%s-%s", clusterId, shardId)));
-		
+
 		replicationStoreManager.initialize();
 		
-		String threadPoolName = String.format("keeper:%s-%s", clusterId, shardId); 
+		String threadPoolName = String.format("keeper:%s-%s", clusterId, shardId);
 		logger.info("[doInitialize][keeper config]{}", keeperConfig);
-		bossGroup = new NioEventLoopGroup(1, ClusterShardAwareThreadFactory.create(clusterId, shardId, "boss:" + threadPoolName));
-		workerGroup = new NioEventLoopGroup(DEFAULT_KEEPER_WORKER_GROUP_THREAD_COUNT, ClusterShardAwareThreadFactory.create(clusterId, shardId, threadPoolName));
+
+		clientExecutors = Executors.newSingleThreadExecutor(ClusterShardAwareThreadFactory.create(clusterId, shardId, "RedisClient-" + threadPoolName));
+		scheduled = Executors.newScheduledThreadPool(DEFAULT_SCHEDULED_CORE_POOL_SIZE , ClusterShardAwareThreadFactory.create(clusterId, shardId, "sch-" + threadPoolName));
+		bossGroup = new NioEventLoopGroup(DEFAULT_BOSS_EVENT_LOOP_SIZE, ClusterShardAwareThreadFactory.create(clusterId, shardId, "boss-" + threadPoolName));
+		workerGroup = new NioEventLoopGroup(DEFAULT_KEEPER_WORKER_GROUP_THREAD_COUNT, ClusterShardAwareThreadFactory.create(clusterId, shardId, "work-"+ threadPoolName));
+		masterEventLoopGroup = new NioEventLoopGroup(DEFAULT_MASTER_EVENT_LOOP_SIZE, ClusterShardAwareThreadFactory.create(clusterId, shardId, "master-" + threadPoolName));
+
+
 		this.leaderElector = createLeaderElector();
 		this.leaderElector.initialize();
 	 	this.redisKeeperServerState = initKeeperServerState();
@@ -218,10 +232,12 @@ public class DefaultRedisKeeperServer extends AbstractRedisServer implements Red
 
 		LifecycleHelper.disposeIfPossible(keeperRedisMaster);
 		this.leaderElector.dispose();
+		masterEventLoopGroup.shutdownGracefully();
 		bossGroup.shutdownGracefully();
 		workerGroup.shutdownGracefully();
 		replicationStoreManager.dispose();
 		this.scheduled.shutdownNow();
+		this.clientExecutors.shutdownNow();
 		super.doDispose();
 	}
 
@@ -250,7 +266,7 @@ public class DefaultRedisKeeperServer extends AbstractRedisServer implements Red
 
 	private void initAndStartMaster(Endpoint target) {
 		try {
-			this.keeperRedisMaster = new DefaultRedisMaster(this, (DefaultEndPoint)target, replicationStoreManager, scheduled);
+			this.keeperRedisMaster = new DefaultRedisMaster(this, (DefaultEndPoint)target, masterEventLoopGroup, replicationStoreManager, scheduled);
 			
 			if(getLifecycleState().isStopping() || getLifecycleState().isStopped()){
 				logger.info("[initAndStartMaster][stopped, exit]{}, {}", target, this);
@@ -301,13 +317,18 @@ public class DefaultRedisKeeperServer extends AbstractRedisServer implements Red
 			public void update(Object args, Observable observable) {
 				
 				if(args instanceof RedisSlave){
-					logger.info("[update][redis client become slave]" + observable);
-					redisClients.put(((RedisClient)observable).channel(), (RedisSlave)args);
+					becomeSlave(((RedisClient)observable).channel(), (RedisSlave)args);
 				}
 			}
 		});
 		
 		return redisClient;
+	}
+
+	protected void becomeSlave(Channel channel, RedisSlave redisSlave) {
+
+		logger.info("[update][redis client become slave]{}",channel);
+		redisClients.put(channel, redisSlave);
 	}
 
 	@Override
@@ -336,6 +357,11 @@ public class DefaultRedisKeeperServer extends AbstractRedisServer implements Red
 	
 	
 	protected ReplicationStore getCurrentReplicationStore(){
+
+		if(!getLifecycleState().isInitialized()){
+
+			throw new RedisKeeperServerStateException(toString(), getLifecycleState().getPhaseName());
+		}
 		
 		try {
 			ReplicationStore replicationStore = replicationStoreManager.createIfNotExist(); 
@@ -406,7 +432,10 @@ public class DefaultRedisKeeperServer extends AbstractRedisServer implements Red
 
 	@Override
 	public void onFullSync() {
-		
+		//alert full sync
+		String alert = String.format("FULL(S)->%s[%s,%s]", getRedisMaster().metaInfo(), getClusterId(), getShardId());
+		EventMonitor.DEFAULT.logAlertEvent(alert);
+
 	}
 
 	private void closeSlaves(String reason) {
@@ -665,6 +694,12 @@ public class DefaultRedisKeeperServer extends AbstractRedisServer implements Red
 	@Override
 	public KeeperMonitor getKeeperMonitor() {
 		return keeperMonitor;
+	}
+
+	@Override
+	public void processCommandSequentially(Runnable runnable) {
+		clientExecutors.execute(new LongTimeAlertTask(runnable, DEFAULT_LONG_TIME_ALERT_TASK_MILLI));
+
 	}
 
 	@Override

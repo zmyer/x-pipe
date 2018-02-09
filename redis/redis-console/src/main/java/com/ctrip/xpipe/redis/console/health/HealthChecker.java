@@ -3,6 +3,8 @@ package com.ctrip.xpipe.redis.console.health;
 import com.ctrip.xpipe.redis.console.config.ConsoleConfig;
 import com.ctrip.xpipe.redis.console.resources.MetaCache;
 import com.ctrip.xpipe.redis.core.entity.DcMeta;
+import com.ctrip.xpipe.redis.core.entity.XpipeMeta;
+import com.ctrip.xpipe.utils.VisibleForTesting;
 import com.ctrip.xpipe.utils.XpipeThreadFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -15,6 +17,7 @@ import javax.annotation.PreDestroy;
 import java.util.Collection;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -42,6 +45,9 @@ public class HealthChecker {
 	@Autowired
 	private HealthCheckVisitor healthCheckVisitor;
 
+	@Autowired
+	private DefaultRedisSessionManager sessionManager;
+
 	private Thread daemonHealthCheckThread;
 
 	@PostConstruct
@@ -61,7 +67,7 @@ public class HealthChecker {
 							TimeUnit.SECONDS.sleep(2);
 							warmup();
 							warmuped = true;
-							TimeUnit.SECONDS.sleep(2);
+							waitAndRetry();
 						}
 						List<DcMeta> dcsToCheck = new LinkedList<>(metaCache.getXpipeMeta().getDcs().values());
 						if(!dcsToCheck.isEmpty()){
@@ -80,18 +86,42 @@ public class HealthChecker {
 				}
 			}
 
+			public void waitAndRetry() {
+				int retryTimes = 4;
+				while(retryTimes > 0) {
+					retryTimes --;
+					try {
+						TimeUnit.SECONDS.sleep(6);
+					} catch (InterruptedException ignore) {
+					}
+					ThreadPoolExecutor executor = (ThreadPoolExecutor)sessionManager.getExecutors();
+					log.info("[warmup] redis connection thread pool: {}", executor.toString());
+					if(executor.getPoolSize() != 0 && executor.getQueue().size() == 0) {
+						break;
+					}
+				}
+			}
+
 		});
 		daemonHealthCheckThread.start();
 	}
 
-	private void warmup() {
-		int period = 2000;
-		try {
-			while(metaCache == null || metaCache.getXpipeMeta() == null) {
-				log.info("[warmup] waiting for metaCache initialized");
+	@VisibleForTesting
+	protected void warmup() {
+		int period = 1000;
+		XpipeMeta xpipeMeta = null;
+		while(xpipeMeta == null) {
+			log.info("[warmup] waiting for metaCache initialized");
+			try {
 				Thread.sleep(period);
+				xpipeMeta = metaCache.getXpipeMeta();
+				Thread.sleep(period);
+			} catch (Exception e) {
+				log.error("[warmup]", e);
 			}
-			List<DcMeta> dcsToCheck = new LinkedList<>(metaCache.getXpipeMeta().getDcs().values());
+		}
+		try {
+			List<DcMeta> dcsToCheck = new LinkedList<>(xpipeMeta.getDcs().values());
 			for(DcMeta dc : dcsToCheck) {
 				dc.accept(healthCheckVisitor);
 			}
@@ -127,4 +157,8 @@ public class HealthChecker {
 		daemonHealthCheckThread.interrupt();
 	}
 
+	@VisibleForTesting
+	public void setMetaCache(MetaCache metaCache) {
+		this.metaCache = metaCache;
+	}
 }

@@ -38,6 +38,8 @@ public interface RedisClient extends Observable, Infoable, Closeable, RedisRole,
 	String []readCommands(ByteBuf byteBuf);
 
 	String info();
+
+	String ip();
 	
 	Channel channel();
 
@@ -46,7 +48,5 @@ public interface RedisClient extends Observable, Infoable, Closeable, RedisRole,
 	void sendMessage(byte[] bytes);
 	
 	void addChannelCloseReleaseResources(Releasable releasable);
-
-	void processCommandSequentially(Runnable runnable);
 
 }

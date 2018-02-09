@@ -44,7 +44,7 @@ public class VersionMonitor extends AbstractRedisConfMonitor<VersionInstanceResu
             HostPort hostPort = entry.getKey();
             try{
                 RedisSession redisSession = findRedisSession(hostPort);
-                redisSession.serverInfo(new Callbackable<String>() {
+                redisSession.infoServer(new Callbackable<String>() {
                     @Override
                     public void success(String message) {
                         addInstanceSuccess(startNanoTime, hostPort.getHost(), hostPort.getPort(), message);
@@ -62,7 +62,7 @@ public class VersionMonitor extends AbstractRedisConfMonitor<VersionInstanceResu
     }
 
     @Override
-    protected BaseSamplePlan<VersionInstanceResult> createPlan(String clusterId, String shardId) {
+    protected BaseSamplePlan<VersionInstanceResult> createPlan(String dcId, String clusterId, String shardId) {
         return new VersionSamplePlan(clusterId, shardId);
     }
 

@@ -25,6 +25,7 @@ import java.util.Date;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.IntSupplier;
 
 /**
  * @author qing.gu
@@ -43,7 +44,7 @@ public class DefaultCommandStore extends AbstractStore implements CommandStore {
 
 	private final int maxFileSize;
 	
-	private final int fileNumToKeep;
+	private final IntSupplier fileNumToKeep;
 	private final int minTimeMilliToGcAfterModified; 
 
 	private final FilenameFilter fileFilter;
@@ -58,10 +59,10 @@ public class DefaultCommandStore extends AbstractStore implements CommandStore {
 	private CommandStoreDelay commandStoreDelay;
 
 	public DefaultCommandStore(File file, int maxFileSize, KeeperMonitor keeperMonitor) throws IOException {
-		this(file, maxFileSize, 3600*1000, 20, keeperMonitor);
+		this(file, maxFileSize, 3600*1000, () -> 20, keeperMonitor);
 	}
 
-	public DefaultCommandStore(File file, int maxFileSize, int minTimeMilliToGcAfterModified, int fileNumToKeep, KeeperMonitor keeperMonitor) throws IOException {
+	public DefaultCommandStore(File file, int maxFileSize, int minTimeMilliToGcAfterModified, IntSupplier fileNumToKeep, KeeperMonitor keeperMonitor) throws IOException {
 		
 		this.baseDir = file.getParentFile();
 		this.fileNamePrefix = file.getName();
@@ -121,16 +122,24 @@ public class DefaultCommandStore extends AbstractStore implements CommandStore {
 		CommandFileContext cmdFileCtx = cmdFileCtxRef.get();
 
 		//delay monitor
-		delayTraceLogger.debug("[appendCommands][begin]{}");
+		if(delayTraceLogger.isDebugEnabled()) {
+			delayTraceLogger.debug("[appendCommands][begin]{}");
+		}
+
 		commandStoreDelay.beginWrite();
 		
 		int wrote = ByteBufUtils.writeByteBufToFileChannel(byteBuf, cmdFileCtx.getChannel(), delayTraceLogger);
-		logger.debug("[appendCommands]{}, {}, {}", cmdFileCtx, byteBuf.readableBytes(), cmdFileCtx.fileLength());
+
+		if(delayTraceLogger.isDebugEnabled()){
+			logger.debug("[appendCommands]{}, {}, {}", cmdFileCtx, byteBuf.readableBytes(), cmdFileCtx.fileLength());
+		}
 
 		long offset = cmdFileCtx.totalLength() - 1;
 		
 		//delay monitor
-		delayTraceLogger.debug("[appendCommands][ end ]{}", offset + 1);
+		if(delayTraceLogger.isDebugEnabled()){
+			delayTraceLogger.debug("[appendCommands][ end ]{}", offset + 1);
+		}
 		commandStoreDelay.endWrite(offset + 1);
 
 		offsetNotifier.offsetIncreased(offset);
@@ -327,7 +336,9 @@ public class DefaultCommandStore extends AbstractStore implements CommandStore {
 
 				logger.debug("[addCommandsListener] {}", referenceFileRegion);
 
-				delayTraceLogger.debug("[write][begin]{}, {}", listener, referenceFileRegion.getTotalPos());
+				if(delayTraceLogger.isDebugEnabled()){
+					delayTraceLogger.debug("[write][begin]{}, {}", listener, referenceFileRegion.getTotalPos());
+				}
 				commandStoreDelay.beginSend(listener, referenceFileRegion.getTotalPos());
 				
 				ChannelFuture future = listener.onCommand(referenceFileRegion);
@@ -338,7 +349,9 @@ public class DefaultCommandStore extends AbstractStore implements CommandStore {
 						public void operationComplete(ChannelFuture future) throws Exception {
 							
 							commandStoreDelay.flushSucceed(listener, referenceFileRegion.getTotalPos());
-							delayTraceLogger.debug("[write][ end ]{}, {}", listener, referenceFileRegion.getTotalPos());
+							if(logger.isDebugEnabled()){
+								delayTraceLogger.debug("[write][ end ]{}, {}", listener, referenceFileRegion.getTotalPos());
+							}
 						}
 					});
 				}
@@ -422,7 +435,7 @@ public class DefaultCommandStore extends AbstractStore implements CommandStore {
 		}
 	}
 	
-	private boolean canDeleteCmdFile(long lowestReadingOffset, long fileStartOffset, long fileSize, long lastModified) {
+	protected boolean canDeleteCmdFile(long lowestReadingOffset, long fileStartOffset, long fileSize, long lastModified) {
 		
 		boolean lowestReading = (fileStartOffset + fileSize < lowestReadingOffset);
 		
@@ -440,7 +453,7 @@ public class DefaultCommandStore extends AbstractStore implements CommandStore {
 		}
 
 		long totalLength = totalLength();
-		long totalKeep = (long)fileSize * fileNumToKeep;
+		long totalKeep = (long)fileSize * fileNumToKeep.getAsInt();
 		boolean fileKeep = totalLength - (fileStartOffset + fileSize) > totalKeep;
 		
 		logger.debug("[canDeleteCmdFile][fileKeep]{}, {} - {} > {}({}*{})", fileKeep, totalLength, (fileStartOffset + fileSize), totalKeep, fileSize, fileNumToKeep);

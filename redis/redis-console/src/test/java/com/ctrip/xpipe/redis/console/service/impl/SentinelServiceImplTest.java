@@ -58,15 +58,21 @@ public class SentinelServiceImplTest extends AbstractServiceImplTest {
         int testCount = 1 << 20;
 
 
-        Set<Integer> all = new HashSet<>();
+        Set<Long> all = new HashSet<>();
 
         for (int i = 0; i < testCount; i++) {
 
             SetinelTbl random = sentinelService.random(sentinels);
-            all.add((int) random.getSetinelId());
+            all.add(random.getSetinelId());
         }
 
         Assert.assertEquals(sentinels.size(), all.size());
 
+    }
+
+    @Test
+    public void testGetSentinelUsage() {
+        logger.info("{}", sentinelService.allSentinelsByDc());
+        logger.info("{}", sentinelService.getAllSentinelsUsage());
     }
 }

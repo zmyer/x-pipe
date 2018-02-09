@@ -28,6 +28,47 @@ public class DefaultRedisKeeperServerTest extends AbstractRedisKeeperContextTest
 	}
 
 	@Test
+	public void testLongTask() throws Exception {
+
+		RedisKeeperServer redisKeeperServer = createRedisKeeperServer();
+		redisKeeperServer.initialize();
+		redisKeeperServer.start();
+		redisKeeperServer.processCommandSequentially(() -> sleep(1100));
+
+	}
+
+	@Test
+	public void testStopGetReplicationStore() throws Exception {
+
+		RedisKeeperServer redisKeeperServer = createRedisKeeperServer();
+
+		try{
+			redisKeeperServer.getReplicationStore();
+			Assert.fail();
+		}catch (Exception e){
+			logger.info("error", e);
+		}
+		redisKeeperServer.initialize();
+		redisKeeperServer.getReplicationStore();
+
+		redisKeeperServer.start();
+		redisKeeperServer.getReplicationStore();
+
+		redisKeeperServer.stop();
+		redisKeeperServer.getReplicationStore();
+
+		redisKeeperServer.dispose();
+
+		logger.info("after dispose");
+		try{
+			redisKeeperServer.getReplicationStore();
+			Assert.fail();
+		}catch (Exception e){
+			logger.info("{}", e);
+		}
+	}
+
+	@Test
 	public void testSetState() throws Exception {
 
 		RedisKeeperServer redisKeeperServer = createRedisKeeperServer();
@@ -146,6 +187,7 @@ public class DefaultRedisKeeperServerTest extends AbstractRedisKeeperContextTest
 
 		waitConditionUntilTimeOut(() -> server1.getConnected() == 1);
 
+		sleep(100);
 		redisKeeperServer.stop();
 
 		redisKeeperServer.setRedisKeeperServerState(
@@ -177,18 +219,18 @@ public class DefaultRedisKeeperServerTest extends AbstractRedisKeeperContextTest
 		Assert.assertEquals(KeeperState.UNKNOWN, redisKeeperServer.getRedisKeeperServerState().keeperState());
 
 		redisKeeperServer.setRedisKeeperServerState(new RedisKeeperServerStateActive(redisKeeperServer));
+		redisKeeperServer.getReplicationStore().getMetaStore().becomeActive();
 		redisKeeperServer.dispose();
 
-		redisKeeperServer.getReplicationStore().getMetaStore().becomeActive();
 
 		redisKeeperServer = createRedisKeeperServer(keeperMeta);
 		redisKeeperServer.initialize();
 		Assert.assertEquals(KeeperState.PRE_ACTIVE, redisKeeperServer.getRedisKeeperServerState().keeperState());
 
 		redisKeeperServer.setRedisKeeperServerState(new RedisKeeperServerStateBackup(redisKeeperServer));
+		redisKeeperServer.getReplicationStore().getMetaStore().becomeBackup();
 		redisKeeperServer.dispose();
 
-		redisKeeperServer.getReplicationStore().getMetaStore().becomeBackup();
 
 		redisKeeperServer = createRedisKeeperServer(keeperMeta);
 		redisKeeperServer.initialize();

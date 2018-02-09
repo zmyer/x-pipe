@@ -12,6 +12,7 @@ import org.unidal.dal.jdbc.DalException;
 import org.unidal.lookup.ContainerLoader;
 
 import javax.annotation.PostConstruct;
+import java.util.Date;
 import java.util.LinkedList;
 import java.util.List;
 
@@ -58,7 +59,8 @@ public class ClusterDao extends AbstractXpipeConsoleDAO{
 			}
 		});
 		if(null != clusterWithSameName) throw new BadRequestException("Duplicated cluster name");
-		
+
+		cluster.setCreateTime(new Date());
 		// cluster meta
 		clusterTblDao.insert(cluster);
 	    
@@ -187,6 +189,19 @@ public class ClusterDao extends AbstractXpipeConsoleDAO{
 		return queryHandler.handleQuery(new DalQuery<List<ClusterTbl>>() {
 			@Override public List<ClusterTbl> doQuery() throws DalException {
 				return clusterTblDao.findClustersWithOrgInfoByActiveDcId(dcId, ClusterTblEntity.READSET_FULL_WITH_ORG);
+			}
+		});
+	}
+
+	public void updateDcClusterShards(String dcName, String clusterName) {
+
+	}
+
+	public List<ClusterTbl> findClustersWithName(List<String> clusterNames) {
+		return queryHandler.handleQuery(new DalQuery<List<ClusterTbl>>() {
+			@Override public List<ClusterTbl> doQuery() throws DalException {
+				return clusterTblDao.findClustersAndOrgWithClusterNames(clusterNames,
+						ClusterTblEntity.READSET_FULL_WITH_ORG);
 			}
 		});
 	}

@@ -4,8 +4,8 @@ package com.ctrip.xpipe.utils;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.channels.FileChannel;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.LongSupplier;
 
 import org.junit.After;
 import org.junit.Assert;
@@ -13,7 +13,6 @@ import org.junit.Before;
 import org.junit.Test;
 
 import com.ctrip.xpipe.AbstractTest;
-import com.ctrip.xpipe.api.utils.ControllableFile;
 import com.ctrip.xpipe.api.utils.FileSize;
 
 /**
@@ -33,36 +32,6 @@ public class SizeControllableFileTest extends AbstractTest {
 
 		file = new File(String.format("%s/%s.data", getTestFileDir(), getTestName()));
 	}
-	
-	@Test
-	public void testCloseSize() throws IOException{
-		
-		int dataLen = 1024;
-		AtomicInteger count = new AtomicInteger();
-		
-		ControllableFile controllableFile = new DefaultControllableFile(file){
-			
-			@Override
-			protected void doOpen() throws IOException {
-				super.doOpen();
-				int current = count.incrementAndGet();
-				if(current == 2){
-					getFileChannel().close();
-				}
-				
-			}
-		};
-		
-		controllableFile.getFileChannel().write(ByteBuffer.wrap(randomString(dataLen).getBytes()));
-		
-		Assert.assertEquals(dataLen, controllableFile.size());
-		
-		controllableFile.close();
-		
-		Assert.assertEquals(dataLen, controllableFile.size());
-
-		
-	}
 
 	@Test
 	public void testSize() throws IOException {
@@ -70,8 +39,8 @@ public class SizeControllableFileTest extends AbstractTest {
 		sizeControllableFile = new SizeControllableFile(file, new FileSize() {
 
 			@Override
-			public long getSize(FileChannel fileChannel) throws IOException {
-				return fileChannel.size() - 100;
+			public long getSize(LongSupplier realSizeProvider) {
+				return realSizeProvider.getAsLong() - 100;
 			}
 		});
 
@@ -92,8 +61,8 @@ public class SizeControllableFileTest extends AbstractTest {
 		sizeControllableFile = new SizeControllableFile(file, new FileSize() {
 
 			@Override
-			public long getSize(FileChannel fileChannel) throws IOException {
-				return fileChannel.size();
+			public long getSize(LongSupplier realSizeProvider) {
+				return realSizeProvider.getAsLong();
 			}
 		}) {
 

@@ -3,6 +3,7 @@ package com.ctrip.xpipe.redis.console.service;
 import com.ctrip.xpipe.redis.console.migration.status.ClusterStatus;
 import com.ctrip.xpipe.redis.console.model.ClusterModel;
 import com.ctrip.xpipe.redis.console.model.ClusterTbl;
+import com.ctrip.xpipe.redis.console.model.consoleportal.ClusterListClusterModel;
 
 import java.util.List;
 
@@ -26,7 +27,8 @@ public interface ClusterService {
 	void bindDc(String clusterName, String dcName);
 	void unbindDc(String clusterName, String dcName);
 	void update(ClusterTbl cluster);
+	List<String> reBalanceSentinels(int numOfClusters);
+	void reBalanceClusterSentinels(List<String> clusterNames);
 
-
-
+	List<ClusterListClusterModel> findUnhealthyClusters();
 }

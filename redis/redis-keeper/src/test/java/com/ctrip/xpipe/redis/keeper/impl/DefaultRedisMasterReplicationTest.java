@@ -11,14 +11,20 @@ import com.ctrip.xpipe.redis.keeper.AbstractRedisKeeperTest;
 import com.ctrip.xpipe.redis.keeper.RedisKeeperServer;
 import com.ctrip.xpipe.redis.keeper.RedisMaster;
 import com.ctrip.xpipe.simpleserver.Server;
+import io.netty.buffer.Unpooled;
 import io.netty.channel.Channel;
+import io.netty.channel.ChannelFuture;
 import io.netty.channel.DefaultChannelPromise;
+import io.netty.channel.nio.NioEventLoopGroup;
+import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
+import org.mockito.invocation.InvocationOnMock;
 import org.mockito.runners.MockitoJUnitRunner;
+import org.mockito.stubbing.Answer;
 
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -32,75 +38,130 @@ import static org.mockito.Mockito.*;
  * Nov 15, 2016
  */
 @RunWith(MockitoJUnitRunner.class)
-public class DefaultRedisMasterReplicationTest extends AbstractRedisKeeperTest{
-	
-	private DefaultRedisMasterReplication  defaultRedisMasterReplication;
-	private int replTimeoutSeconds = 1;
-	
+public class DefaultRedisMasterReplicationTest extends AbstractRedisKeeperTest {
+
+	private DefaultRedisMasterReplication defaultRedisMasterReplication;
+	private int replTimeoutMilli = 200;
+
 	@Mock
 	private RedisMaster redisMaster;
 
 	@Mock
 	private RedisKeeperServer redisKeeperServer;
-	
+
 	@Mock
 	private ReplicationStore replicationStore;
+
 	@Mock
 	private MetaStore metaStore;
 
+	private NioEventLoopGroup nioEventLoopGroup;
+
 	@Before
-	public void beforeDefaultRedisMasterReplicationTest() throws Exception{
-		
-		defaultRedisMasterReplication = new DefaultRedisMasterReplication(redisMaster, redisKeeperServer, scheduled, replTimeoutSeconds);
+	public void beforeDefaultRedisMasterReplicationTest() throws Exception {
+
+		nioEventLoopGroup = new NioEventLoopGroup();
+
+		defaultRedisMasterReplication = new DefaultRedisMasterReplication(redisMaster, redisKeeperServer, nioEventLoopGroup, scheduled, replTimeoutMilli);
 		when(redisKeeperServer.getRedisKeeperServerState()).thenReturn(new RedisKeeperServerStateActive(redisKeeperServer));
-		
+
 		when(redisMaster.getCurrentReplicationStore()).thenReturn(replicationStore);
 		when(replicationStore.getMetaStore()).thenReturn(metaStore);
-		
+
 		add(defaultRedisMasterReplication);
 	}
-	
+
 	@Test
-	public void testTimeout() throws Exception{
-		
+	public void testStopReceivingDataWhenNotStarted() throws Exception {
+
+		when(redisMaster.masterEndPoint()).thenReturn(new DefaultEndPoint("localhost", randomPort()));
+
+		defaultRedisMasterReplication.initialize();
+		try {
+			defaultRedisMasterReplication.handleResponse(mock(Channel.class), Unpooled.wrappedBuffer(randomString().getBytes()));
+			Assert.fail();
+		}catch (RedisMasterReplicationStateException e){
+			logger.info("{}", e.getMessage());
+		}
+		defaultRedisMasterReplication.start();
+
+		Channel channel = mock(Channel.class);
+		when(channel.closeFuture()).thenReturn(mock(ChannelFuture.class));
+
+		defaultRedisMasterReplication.masterConnected(channel);
+		defaultRedisMasterReplication.handleResponse(channel, Unpooled.wrappedBuffer(randomString().getBytes()));
+
+		defaultRedisMasterReplication.stop();
+		try {
+			defaultRedisMasterReplication.handleResponse(mock(Channel.class), Unpooled.wrappedBuffer(randomString().getBytes()));
+			Assert.fail();
+		}catch (RedisMasterReplicationStateException e){
+			logger.info("{}", e.getMessage());
+		}
+		defaultRedisMasterReplication.dispose();
+		try {
+			defaultRedisMasterReplication.handleResponse(mock(Channel.class), Unpooled.wrappedBuffer(randomString().getBytes()));
+			Assert.fail();
+		}catch (RedisMasterReplicationStateException e){
+			logger.info("{}", e.getMessage());
+		}
+
+
+	}
+
+	@Test
+	public void testTimeout() throws Exception {
+
 		Server server = startEmptyServer();
 		when(redisMaster.masterEndPoint()).thenReturn(new DefaultEndPoint("localhost", server.getPort()));
-		defaultRedisMasterReplication.setMasterConnectRetryDelaySeconds(0);
+		AtomicInteger connectingCount = new AtomicInteger(0);
+		doAnswer(new Answer() {
+			@Override
+			public Object answer(InvocationOnMock invocation) throws Throwable {
+				connectingCount.incrementAndGet();
+				return null;
+			}
+		}).when(redisMaster).setMasterState(MASTER_STATE.REDIS_REPL_CONNECTING);
 		
+		defaultRedisMasterReplication.setMasterConnectRetryDelaySeconds(0);
+
 		defaultRedisMasterReplication.initialize();
 		defaultRedisMasterReplication.start();
-		
-		sleep(replTimeoutSeconds * 2000);
-		
-		verify(redisMaster, atLeast(2)).setMasterState(MASTER_STATE.REDIS_REPL_CONNECTING);
+
+		waitConditionUntilTimeOut(() -> connectingCount.get() >= 2);
 	}
-	
+
 	@Test
-	public void testCancelScheduleWhenConnected() throws IOException{
-		
+	public void testCancelScheduleWhenConnected() throws IOException {
+
 		AtomicInteger replConfCount = new AtomicInteger();
-		
-		defaultRedisMasterReplication = new DefaultRedisMasterReplication(redisMaster, redisKeeperServer, scheduled, replTimeoutSeconds){
+
+		defaultRedisMasterReplication = new DefaultRedisMasterReplication(redisMaster, redisKeeperServer, nioEventLoopGroup, scheduled, replTimeoutMilli) {
 			@Override
 			protected Command<Object> createReplConf() {
 				replConfCount.incrementAndGet();
 				return super.createReplConf();
 			}
 		};
-		
+
 		defaultRedisMasterReplication.onContinue(RunidGenerator.DEFAULT.generateRunid(), RunidGenerator.DEFAULT.generateRunid());
-		
+
 		Channel channel = mock(Channel.class);
 		when(channel.closeFuture()).thenReturn(new DefaultChannelPromise(channel));
-		
+
 		defaultRedisMasterReplication.masterConnected(channel);
-		
+
 		int countBefore = replConfCount.get();
-		
+
 		sleep(DefaultRedisMasterReplication.REPLCONF_INTERVAL_MILLI * 2);
-		
+
 		int countAfter = replConfCount.get();
-		
+
 		Assert.assertEquals(countBefore, countAfter);
+	}
+
+	@After
+	public void afterDefaultRedisMasterReplicationTest() throws Exception {
+		nioEventLoopGroup.shutdownGracefully();
 	}
 }

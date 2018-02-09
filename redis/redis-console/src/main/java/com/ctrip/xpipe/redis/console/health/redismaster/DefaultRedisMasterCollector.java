@@ -2,6 +2,7 @@ package com.ctrip.xpipe.redis.console.health.redismaster;
 
 import com.ctrip.xpipe.api.server.Server;
 import com.ctrip.xpipe.concurrent.AbstractExceptionLogTask;
+import com.ctrip.xpipe.concurrent.DefaultExecutorFactory;
 import com.ctrip.xpipe.endpoint.HostPort;
 import com.ctrip.xpipe.redis.console.health.RedisSession;
 import com.ctrip.xpipe.redis.console.health.RedisSessionManager;
@@ -10,6 +11,7 @@ import com.ctrip.xpipe.redis.console.model.RedisTbl;
 import com.ctrip.xpipe.redis.console.service.RedisService;
 import com.ctrip.xpipe.redis.console.service.exception.ResourceNotFoundException;
 import com.ctrip.xpipe.redis.core.entity.RedisMeta;
+import com.ctrip.xpipe.utils.VisibleForTesting;
 import com.ctrip.xpipe.utils.XpipeThreadFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -17,6 +19,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
 
+import javax.annotation.PostConstruct;
+import javax.annotation.PreDestroy;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
@@ -39,7 +43,12 @@ public class DefaultRedisMasterCollector implements RedisMasterCollector{
     @Autowired
     private RedisService redisService;
 
-    private ExecutorService executors = Executors.newCachedThreadPool(XpipeThreadFactory.create("RedisMasterCorrector"));
+    private ExecutorService executors;
+
+    @PostConstruct
+    public void postConstructDefaultRedisMasterCollector(){
+        executors = DefaultExecutorFactory.createAllowCoreTimeoutAbortPolicy("RedisMasterCorrector").createExecutorService();
+    }
 
     @Override
     public void collect(Sample<InstanceRedisMasterResult> sample) {
@@ -51,7 +60,7 @@ public class DefaultRedisMasterCollector implements RedisMasterCollector{
             correct(plan);
         }else {
             Map.Entry<HostPort, InstanceRedisMasterResult> next = hostPort2SampleResult.entrySet().iterator().next();
-            if(!next.getValue().roleIsMaster()){
+            if(next.getValue().roleIsSlave()){
                 logger.info("[collect][role not right]{}, {}", plan, next);
                 correct(plan);
             }
@@ -68,12 +77,13 @@ public class DefaultRedisMasterCollector implements RedisMasterCollector{
         });
     }
 
-    private void doCorrection(RedisMasterSamplePlan plan) {
+    @VisibleForTesting
+    protected void doCorrection(RedisMasterSamplePlan plan) {
         logger.info("[doCorrection]{}", plan);
 
         //check redis master again
 
-        if(isMaster(plan.getMasterHost(), plan.getMasterPort())){
+        if(plan.getMasterHost() != null && isMaster(plan.getMasterHost(), plan.getMasterPort())){
             logger.info("[doCorrection][still master]{}", plan);
             return;
         }
@@ -117,9 +127,10 @@ public class DefaultRedisMasterCollector implements RedisMasterCollector{
         }
     }
 
-    private boolean isMaster(String host, int port) {
-        RedisSession redisSession = redisSessionManager.findOrCreateSession(host, port);
+    @VisibleForTesting
+    protected boolean isMaster(String host, int port) {
         try {
+            RedisSession redisSession = redisSessionManager.findOrCreateSession(host, port);
             String role = redisSession.roleSync();
             if(Server.SERVER_ROLE.MASTER.sameRole(role)){
                 return true;
@@ -129,4 +140,10 @@ public class DefaultRedisMasterCollector implements RedisMasterCollector{
         }
         return  false;
     }
+
+    @PreDestroy
+    public void preDestroyDefaultRedisMasterCollector(){
+        executors.shutdown();
+    }
+
 }

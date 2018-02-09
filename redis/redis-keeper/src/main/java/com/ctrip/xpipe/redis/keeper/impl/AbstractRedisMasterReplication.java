@@ -10,6 +10,7 @@ import com.ctrip.xpipe.command.SequenceCommandChain;
 import com.ctrip.xpipe.concurrent.AbstractExceptionLogTask;
 import com.ctrip.xpipe.exception.XpipeException;
 import com.ctrip.xpipe.lifecycle.AbstractLifecycle;
+import com.ctrip.xpipe.netty.ByteBufUtils;
 import com.ctrip.xpipe.netty.NettySimpleMessageHandler;
 import com.ctrip.xpipe.netty.commands.DefaultNettyClient;
 import com.ctrip.xpipe.netty.commands.NettyClient;
@@ -23,9 +24,9 @@ import com.ctrip.xpipe.redis.keeper.RdbDumper;
 import com.ctrip.xpipe.redis.keeper.RedisKeeperServer;
 import com.ctrip.xpipe.redis.keeper.RedisMaster;
 import com.ctrip.xpipe.redis.keeper.RedisMasterReplication;
+import com.ctrip.xpipe.redis.keeper.config.KeeperConfig;
 import com.ctrip.xpipe.redis.keeper.netty.NettySlaveHandler;
 import com.ctrip.xpipe.utils.ChannelUtil;
-import com.ctrip.xpipe.utils.ClusterShardAwareThreadFactory;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.PooledByteBufAllocator;
@@ -51,11 +52,11 @@ public abstract class AbstractRedisMasterReplication extends AbstractLifecycle i
 
 	public static String KEY_MASTER_CONNECT_RETRY_DELAY_SECONDS = "KEY_MASTER_CONNECT_RETRY_DELAY_SECONDS";
 
-	public static String KEY_REPLICATION_TIMEOUT = "KEY_REPLICATION_TIMEOUT";
+	public static String KEY_REPLICATION_TIMEOUT = "KEY_REPLICATION_TIMEOUT_MILLI";
 
-	public static int DEFAULT_REPLICATION_TIMEOUT = Integer.parseInt(System.getProperty(KEY_REPLICATION_TIMEOUT, "60"));
+	public static int DEFAULT_REPLICATION_TIMEOUT_MILLI = Integer.parseInt(System.getProperty(KEY_REPLICATION_TIMEOUT, "60000"));
 
-	private final int replTimeoutSeconds;
+	private final int replTimeoutMilli;
 
 	private long repl_transfer_lastio;
 
@@ -64,8 +65,6 @@ public abstract class AbstractRedisMasterReplication extends AbstractLifecycle i
 	protected FixedObjectPool<NettyClient> clientPool;
 
 	protected ScheduledExecutorService scheduled;
-
-	protected EventLoopGroup slaveEventLoopGroup;
 
 	public static final int REPLCONF_INTERVAL_MILLI = 1000;
 
@@ -77,34 +76,29 @@ public abstract class AbstractRedisMasterReplication extends AbstractLifecycle i
 
 	protected Channel masterChannel;
 
+	private NioEventLoopGroup nioEventLoopGroup;
+
 	protected RedisKeeperServer redisKeeperServer;
 
 	protected AtomicReference<Command<?>> currentCommand = new AtomicReference<Command<?>>(null);
 
-	public AbstractRedisMasterReplication(RedisKeeperServer redisKeeperServer, RedisMaster redisMaster,
-			ScheduledExecutorService scheduled, int replTimeoutSeconds) {
+	public AbstractRedisMasterReplication(RedisKeeperServer redisKeeperServer, RedisMaster redisMaster, NioEventLoopGroup nioEventLoopGroup,
+			ScheduledExecutorService scheduled, int replTimeoutMilli) {
 
 		this.redisKeeperServer = redisKeeperServer;
 		this.redisMaster = redisMaster;
-		this.replTimeoutSeconds = replTimeoutSeconds;
+		this.nioEventLoopGroup = nioEventLoopGroup;
+		this.replTimeoutMilli = replTimeoutMilli;
 		this.scheduled = scheduled;
 	}
 
-	public AbstractRedisMasterReplication(RedisKeeperServer redisKeeperServer, RedisMaster redisMaster,
+	public AbstractRedisMasterReplication(RedisKeeperServer redisKeeperServer, RedisMaster redisMaster, NioEventLoopGroup nioEventLoopGroup,
 			ScheduledExecutorService scheduled) {
-		this(redisKeeperServer, redisMaster, scheduled, DEFAULT_REPLICATION_TIMEOUT);
+		this(redisKeeperServer, redisMaster, nioEventLoopGroup, scheduled, DEFAULT_REPLICATION_TIMEOUT_MILLI);
 	}
 
 	public RedisMaster getRedisMaster() {
 		return redisMaster;
-	}
-
-	@Override
-	protected void doInitialize() throws Exception {
-		super.doInitialize();
-		String threadPoolName = String.format("%s:(%s:%d)", getSimpleName(), redisMaster.masterEndPoint().getHost(), redisMaster.masterEndPoint().getPort()); 
-		slaveEventLoopGroup = new NioEventLoopGroup(1, ClusterShardAwareThreadFactory.create(redisKeeperServer.getClusterId(), redisKeeperServer.getShardId(), threadPoolName));
-
 	}
 
 	protected abstract String getSimpleName();
@@ -135,7 +129,7 @@ public abstract class AbstractRedisMasterReplication extends AbstractLifecycle i
 		}
 
 		Bootstrap b = new Bootstrap();
-		b.group(slaveEventLoopGroup).channel(NioSocketChannel.class).option(ChannelOption.TCP_NODELAY, true)
+		b.group(nioEventLoopGroup).channel(NioSocketChannel.class).option(ChannelOption.TCP_NODELAY, true)
 				.option(ChannelOption.ALLOCATOR, PooledByteBufAllocator.DEFAULT)
 				.handler(new ChannelInitializer<SocketChannel>() {
 					@Override
@@ -155,11 +149,17 @@ public abstract class AbstractRedisMasterReplication extends AbstractLifecycle i
 	protected ChannelFuture tryConnect(Bootstrap b) {
 
 		Endpoint endpoint = redisMaster.masterEndPoint();
+		logger.info("[tryConnect][begin]{}", endpoint);
 		return b.connect(endpoint.getHost(), endpoint.getPort());
 	}
 
 	@Override
 	public void handleResponse(Channel channel, ByteBuf byteBuf) throws XpipeException {
+
+		if(!getLifecycleState().isStarted()){
+			throw new RedisMasterReplicationStateException(this,
+					String.format("not stated: %s, do not receive message:%d, %s", getLifecycleState().getPhaseName(), byteBuf.readableBytes(), ByteBufUtils.readToString(byteBuf)));
+		}
 
 		repl_transfer_lastio = System.currentTimeMillis();
 		clientPool.getObject().handleResponse(channel, byteBuf);
@@ -212,26 +212,26 @@ public abstract class AbstractRedisMasterReplication extends AbstractLifecycle i
 
 	private void checkTimeout(final Channel channel) {
 
-		logger.info("[checkTimeout]{}s, {}", replTimeoutSeconds, ChannelUtil.getDesc(channel));
+		logger.info("[checkTimeout]{} ms, {}", replTimeoutMilli, ChannelUtil.getDesc(channel));
 		final ScheduledFuture<?> repliTimeoutCheckFuture = scheduled.scheduleAtFixedRate(new AbstractExceptionLogTask() {
 
 					@Override
 					protected void doRun() throws Exception {
 
 						long current = System.currentTimeMillis();
-						if ((current - repl_transfer_lastio) >= replTimeoutSeconds * 1000) {
+						if ((current - repl_transfer_lastio) >= replTimeoutMilli) {
 							logger.info("[doRun][no action with master for a long time, close connection]{}, {}", channel, AbstractRedisMasterReplication.this);
 							channel.close();
 						}
 					}
-		}, replTimeoutSeconds, replTimeoutSeconds, TimeUnit.SECONDS);
+		}, replTimeoutMilli, replTimeoutMilli, TimeUnit.MILLISECONDS);
 		
 		channel.closeFuture().addListener(new ChannelFutureListener() {
 			
 			@Override
 			public void operationComplete(ChannelFuture future) throws Exception {
 				
-				logger.info("[cancelTimeout]{}s, {}", replTimeoutSeconds, channel);
+				logger.info("[cancelTimeout]{}ms, {}", replTimeoutMilli, channel);
 				repliTimeoutCheckFuture.cancel(true);
 			}
 		});
@@ -293,7 +293,9 @@ public abstract class AbstractRedisMasterReplication extends AbstractLifecycle i
 	protected abstract void psyncFail(Throwable cause);
 
 	protected ChannelDuplexHandler createHandler() {
-		return new NettySlaveHandler(this, redisKeeperServer, redisKeeperServer.getKeeperConfig().getTrafficReportIntervalMillis());
+
+		KeeperConfig keeperConfig = redisKeeperServer.getKeeperConfig();
+		return new NettySlaveHandler(this, redisKeeperServer, keeperConfig != null? keeperConfig.getTrafficReportIntervalMillis() : KeeperConfig.DEFAULT_TRAFFIC_REPORT_INTERVAL_MILLIS);
 	}
 
 	@Override
@@ -307,15 +309,9 @@ public abstract class AbstractRedisMasterReplication extends AbstractLifecycle i
 
 		logger.info("[stopReplication]{}", redisMaster.masterEndPoint());
 		if (masterChannel != null && masterChannel.isOpen()) {
+			logger.info("[stopReplication][doStop]{}", masterChannel);
 			masterChannel.close();
 		}
-	}
-
-	@Override
-	protected void doDispose() throws Exception {
-
-		slaveEventLoopGroup.shutdownGracefully();
-		super.doDispose();
 	}
 
 	@Override

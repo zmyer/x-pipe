@@ -9,7 +9,6 @@ import com.ctrip.xpipe.redis.core.entity.DcMeta;
 import com.ctrip.xpipe.redis.core.entity.RedisMeta;
 import com.ctrip.xpipe.redis.core.entity.ShardMeta;
 import com.ctrip.xpipe.tuple.Pair;
-import com.ctrip.xpipe.utils.OsUtils;
 import com.ctrip.xpipe.utils.VisibleForTesting;
 import com.ctrip.xpipe.utils.XpipeThreadFactory;
 import org.slf4j.Logger;
@@ -21,7 +20,6 @@ import javax.annotation.PreDestroy;
 import java.util.*;
 import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
 
 /**
@@ -149,7 +147,10 @@ public abstract class BaseSampleMonitor<T extends BaseInstanceResult> implements
 					}
 				}
 				long end = System.currentTimeMillis();
-				log.info("[scan end]count:{}, cost: {} ms", count, end - start);
+				long cost = end - start;
+				if(cost > 10){
+					log.info("[scan end][cost > 10 ms]count:{}, cost: {} ms", count, end - start);
+				}
 
 			}
 
@@ -171,7 +172,7 @@ public abstract class BaseSampleMonitor<T extends BaseInstanceResult> implements
 					Pair<String, String> cs = new Pair<>(clusterMeta.getId(), shardMeta.getId());
 					BaseSamplePlan<T> plan = plans.get(cs);
 					if (plan == null) {
-						plan = createPlan(clusterMeta.getId(), shardMeta.getId());
+						plan = createPlan(dcMeta.getId(), clusterMeta.getId(), shardMeta.getId());
 						plans.put(cs, plan);
 					}
 
@@ -179,6 +180,10 @@ public abstract class BaseSampleMonitor<T extends BaseInstanceResult> implements
 
 						log.debug("[generatePlan]{}", redisMeta.desc());
 						addRedis(plan, dcMeta.getId(), redisMeta);
+					}
+
+					if(plan.isEmpty()) {
+						plans.remove(cs);
 					}
 				}
 			}
@@ -192,7 +197,7 @@ public abstract class BaseSampleMonitor<T extends BaseInstanceResult> implements
 
 	protected abstract void addRedis(BaseSamplePlan<T> plan, String dcId, RedisMeta redisMeta);
 
-	protected abstract BaseSamplePlan<T> createPlan(String clusterId, String shardId);
+	protected abstract BaseSamplePlan<T> createPlan(String dcId, String clusterId, String shardId);
 
 	@VisibleForTesting
 	public void setSamples(Map<Long, Sample<T>> samples) {

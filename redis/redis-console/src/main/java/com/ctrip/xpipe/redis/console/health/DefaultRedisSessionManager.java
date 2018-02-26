@@ -65,6 +65,15 @@ public class DefaultRedisSessionManager implements RedisSessionManager {
 		this(1);
 	}
 
+	@VisibleForTesting
+	public DefaultRedisSessionManager(int reconnectDelaySeconds, ExecutorService executorService, ExecutorService pingAndDelayExecutor) {
+		clientResources = DefaultClientResources.builder()//
+				.reconnectDelay(Delay.constant(reconnectDelaySeconds, TimeUnit.SECONDS))//
+				.build();
+		this.executors = executorService;
+		this.pingAndDelayExecutor = pingAndDelayExecutor;
+	}
+
 	public DefaultRedisSessionManager(int reconnectDelaySeconds) {
 		clientResources = DefaultClientResources.builder()//
 				.reconnectDelay(Delay.constant(reconnectDelaySeconds, TimeUnit.SECONDS))//
@@ -178,7 +187,7 @@ public class DefaultRedisSessionManager implements RedisSessionManager {
 	}
 
 	public RedisClient findRedisConnection(String host, int port) {
-		RedisURI redisUri = new RedisURI(host, port, 2, TimeUnit.SECONDS);
+		RedisURI redisUri = new RedisURI(host, port, 1, TimeUnit.SECONDS);
 		SocketOptions socketOptions = SocketOptions.builder()
 				.connectTimeout(XPipeConsoleConstant.SOCKET_TIMEOUT, TimeUnit.SECONDS)
 				.build();

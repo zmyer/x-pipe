@@ -1,5 +1,6 @@
 package com.ctrip.xpipe.redis.keeper.impl;
 
+import com.ctrip.xpipe.api.endpoint.Endpoint;
 import com.ctrip.xpipe.api.lifecycle.Releasable;
 import com.ctrip.xpipe.api.observer.Observer;
 import com.ctrip.xpipe.api.server.PARTIAL_STATE;
@@ -12,7 +13,10 @@ import com.ctrip.xpipe.redis.keeper.RedisKeeperServer;
 import com.ctrip.xpipe.redis.keeper.RedisSlave;
 import com.ctrip.xpipe.redis.keeper.SLAVE_STATE;
 import com.ctrip.xpipe.redis.keeper.exception.RedisKeeperRuntimeException;
-import com.ctrip.xpipe.utils.*;
+import com.ctrip.xpipe.utils.ChannelUtil;
+import com.ctrip.xpipe.utils.CloseState;
+import com.ctrip.xpipe.utils.ClusterShardAwareThreadFactory;
+import com.ctrip.xpipe.utils.VisibleForTesting;
 import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.SettableFuture;
 import io.netty.buffer.ByteBuf;
@@ -26,7 +30,6 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.Set;
 import java.util.concurrent.*;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -291,7 +294,8 @@ public class DefaultRedisSlave implements RedisSlave {
 		long lag = System.currentTimeMillis() - replAckTime;
 		info = String.format(
 				"ip=%s,port=%d,state=%s,offset=%d,lag=%d,remotePort=%d" ,
-				IpUtils.getIp(channel().remoteAddress()), getSlaveListeningPort(), 
+				getClientIpAddress() == null ? ip() : getClientIpAddress(),
+				getSlaveListeningPort(),
 				slaveState != null ? slaveState.getDesc() : "null",
 				replAckOff, lag/1000, remotePort());
 		return info;
@@ -338,9 +342,17 @@ public class DefaultRedisSlave implements RedisSlave {
 	public boolean isOpen() {
 		return closeState.isOpen();
 	}
-	
-	public void close() throws IOException {
-		
+
+	@Override
+	public void close() {
+		close(0);
+	}
+
+	@VisibleForTesting
+	/**
+	 * testSleepMilli is for test
+	 */
+	protected void close(int testSleepMilli) {
 		logger.info("[close]{}", this);
 		if(closeState.isClosed()){
 			logger.info("[close][already closed]{}", this);
@@ -356,25 +368,35 @@ public class DefaultRedisSlave implements RedisSlave {
 		}, MoreExecutors.directExecutor());
 
 
-		if(closeState.isClosing()){
-			scheduled.schedule(new AbstractExceptionLogTask() {
-				@Override
-				protected void doRun() throws Exception {
-					logger.info("[wait for psync processed timeout close slave]{}", DefaultRedisSlave.this);
-					doRealClose();
+		synchronized (closeState) {
+			if (closeState.isClosing()) {
+				//for unit test
+				if (testSleepMilli > 0) {
+					try {
+						TimeUnit.MILLISECONDS.sleep(testSleepMilli);
+					} catch (InterruptedException e) {
+					}
 				}
-			}, waitForPsyncProcessedTimeoutMilli, TimeUnit.MILLISECONDS);
+				scheduled.schedule(new AbstractExceptionLogTask() {
+					@Override
+					protected void doRun() throws Exception {
+						logger.info("[wait for psync processed timeout close slave]{}", DefaultRedisSlave.this);
+						doRealClose();
+					}
+				}, waitForPsyncProcessedTimeoutMilli, TimeUnit.MILLISECONDS);
+			}
 		}
-
 	}
 
 	protected void doRealClose() throws IOException {
 
-		logger.info("[doRealClose]{}", this);
-		closeState.setClosed();
-		redisClient.close();
-		psyncExecutor.shutdownNow();
-		scheduled.shutdownNow();
+		synchronized (closeState) {
+			logger.info("[doRealClose]{}", this);
+			closeState.setClosed();
+			redisClient.close();
+			psyncExecutor.shutdownNow();
+			scheduled.shutdownNow();
+		}
 	}
 	
 	@Override
@@ -407,6 +429,16 @@ public class DefaultRedisSlave implements RedisSlave {
 		return redisClient.getSlaveListeningPort();
 	}
 
+	@Override
+	public void setClientIpAddress(String host) {
+		redisClient.setClientIpAddress(host);
+	}
+
+	@Override
+	public String getClientIpAddress() {
+		return redisClient.getClientIpAddress();
+	}
+
 	public void capa(CAPA capa) {
 		redisClient.capa(capa);
 	}
@@ -436,6 +468,16 @@ public class DefaultRedisSlave implements RedisSlave {
 
 	public void addChannelCloseReleaseResources(Releasable releasable) {
 		redisClient.addChannelCloseReleaseResources(releasable);
+	}
+
+	@Override
+	public void setClientEndpoint(Endpoint endpoint) {
+		redisClient.setClientEndpoint(endpoint);
+	}
+
+	@Override
+	public Endpoint getClientEndpoint() {
+		return redisClient.getClientEndpoint();
 	}
 
 	@Override

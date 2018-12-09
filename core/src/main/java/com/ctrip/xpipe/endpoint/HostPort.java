@@ -2,6 +2,7 @@ package com.ctrip.xpipe.endpoint;
 
 import com.ctrip.xpipe.tuple.Pair;
 
+import java.net.InetSocketAddress;
 import java.util.Objects;
 
 public class HostPort {
@@ -11,6 +12,11 @@ public class HostPort {
 	private int m_port;
 
 	public HostPort() {
+	}
+
+	public HostPort(InetSocketAddress address){
+		this.m_host = address.getHostString();
+		this.m_port = address.getPort();
 	}
 
 	public HostPort(String host, int port) {
@@ -37,6 +43,11 @@ public class HostPort {
 	public static HostPort fromPair(Pair<String, Integer> pair){
 
 		return new HostPort(pair.getKey(), pair.getValue());
+	}
+
+	public static HostPort fromString(String addr) {
+		String[] hostPort = addr.split("\\s*:\\s*");
+		return new HostPort(hostPort[0], Integer.parseInt(hostPort[1]));
 	}
 
 	@Override

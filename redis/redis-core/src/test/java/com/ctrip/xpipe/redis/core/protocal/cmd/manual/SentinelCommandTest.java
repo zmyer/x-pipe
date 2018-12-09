@@ -1,6 +1,7 @@
 package com.ctrip.xpipe.redis.core.protocal.cmd.manual;
 
 import com.ctrip.xpipe.api.pool.SimpleObjectPool;
+import com.ctrip.xpipe.endpoint.DefaultEndPoint;
 import com.ctrip.xpipe.endpoint.HostPort;
 import com.ctrip.xpipe.netty.commands.NettyClient;
 import com.ctrip.xpipe.redis.core.protocal.cmd.AbstractSentinelCommand;
@@ -12,7 +13,6 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
-import java.net.InetSocketAddress;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 
@@ -23,17 +23,17 @@ import java.util.concurrent.ExecutionException;
  */
 public class SentinelCommandTest extends AbstractCommandTest{
 	
-	private String host = "localhost";
+	private String host = "10.3.2.220";
 	
 	private int port = 5002;
 	
-	private String masterName = "mymaster";
+	private String masterName = "sitemon-xpipegroup0";
 	
 	private SimpleObjectPool<NettyClient> clientPool;
 	
 	@Before
 	public void beforeSentinelCommandTest() throws Exception{
-		clientPool = getXpipeNettyClientKeyedObjectPool().getKeyPool(new InetSocketAddress(host, port)); 
+		clientPool = getXpipeNettyClientKeyedObjectPool().getKeyPool(new DefaultEndPoint(host, port));
 	}
 
 	@Test
@@ -109,6 +109,12 @@ public class SentinelCommandTest extends AbstractCommandTest{
 		}
 		long end = System.currentTimeMillis();
 		logger.info("[duration] {}", end - begin);
+	}
+
+	@Test
+	public void testSentinelSlaves() throws ExecutionException, InterruptedException {
+		List<HostPort> slaves = new AbstractSentinelCommand.SentinelSlaves(clientPool, scheduled, masterName).execute().get();
+		logger.info("[testSentinelSlaves] slaves: {}", slaves);
 	}
 	
 	@Test

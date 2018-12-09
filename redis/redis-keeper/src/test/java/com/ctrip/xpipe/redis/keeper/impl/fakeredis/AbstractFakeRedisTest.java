@@ -2,6 +2,7 @@ package com.ctrip.xpipe.redis.keeper.impl.fakeredis;
 
 import com.ctrip.xpipe.api.pool.SimpleObjectPool;
 import com.ctrip.xpipe.command.SequenceCommandChain;
+import com.ctrip.xpipe.endpoint.DefaultEndPoint;
 import com.ctrip.xpipe.netty.commands.NettyClient;
 import com.ctrip.xpipe.pool.FixedObjectPool;
 import com.ctrip.xpipe.redis.core.protocal.CAPA;
@@ -19,7 +20,6 @@ import org.junit.Assert;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.net.InetSocketAddress;
 
 /**
  * @author wenchao.meng
@@ -83,7 +83,7 @@ public class AbstractFakeRedisTest extends AbstractRedisKeeperContextTest{
 	}
 
 	protected void connectToFakeRedis(RedisKeeperServer redisKeeperServer) {
-		redisKeeperServer.getRedisKeeperServerState().becomeActive(new InetSocketAddress("localhost", fakeRedisServer.getPort()));
+		redisKeeperServer.getRedisKeeperServerState().becomeActive(new DefaultEndPoint("localhost", fakeRedisServer.getPort()));
 		
 	}
 
@@ -114,7 +114,7 @@ public class AbstractFakeRedisTest extends AbstractRedisKeeperContextTest{
 
 		SequenceCommandChain chain = new SequenceCommandChain(false);
 		
-		SimpleObjectPool<NettyClient> pool = getXpipeNettyClientKeyedObjectPool().getKeyPool(new InetSocketAddress(ip, port));
+		SimpleObjectPool<NettyClient> pool = getXpipeNettyClientKeyedObjectPool().getKeyPool(new DefaultEndPoint(ip, port));
 		NettyClient nettyClient = null;
 		
 		try{

@@ -1,6 +1,7 @@
 package com.ctrip.xpipe.redis.console.resources;
 
 import com.ctrip.xpipe.endpoint.HostPort;
+import com.ctrip.xpipe.redis.core.entity.RouteMeta;
 import com.ctrip.xpipe.redis.core.entity.XpipeMeta;
 import com.ctrip.xpipe.spring.AbstractProfile;
 import com.ctrip.xpipe.tuple.Pair;
@@ -8,6 +9,7 @@ import org.springframework.context.annotation.Lazy;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -74,4 +76,17 @@ public class TestMetaCache implements MetaCache {
     public Pair<String, String> findClusterShardBySentinelMonitor(String monitor) {
         return null;
     }
+
+    @Override
+    public RouteMeta getRouteIfPossible(HostPort hostPort) {
+        return null;
+    }
+
+    @Override
+    public List<HostPort> getAllRedisOfDc(String dcId) {
+        return null;
+    }
+
+    public String getActiveDc(String clusterId, String shardId){return null;}
+
 }

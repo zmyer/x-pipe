@@ -3,13 +3,13 @@ package com.ctrip.xpipe.redis.core.protocal.cmd.manual;
 import com.ctrip.xpipe.api.command.CommandFuture;
 import com.ctrip.xpipe.api.command.CommandFutureListener;
 import com.ctrip.xpipe.api.pool.SimpleObjectPool;
+import com.ctrip.xpipe.endpoint.DefaultEndPoint;
 import com.ctrip.xpipe.netty.commands.NettyClient;
 import com.ctrip.xpipe.redis.core.AbstractRedisTest;
 import com.ctrip.xpipe.redis.core.protocal.cmd.DefaultSlaveOfCommand;
 import com.ctrip.xpipe.redis.core.protocal.cmd.PingCommand;
 import org.junit.Test;
 
-import java.net.InetSocketAddress;
 import java.util.concurrent.CountDownLatch;
 
 /**
@@ -28,7 +28,7 @@ public class DefaultSlaveOfCommandTest extends AbstractRedisTest {
         //make connection active
         for(int i = 0; i < count ;i++){
             int port = begin + i;
-            SimpleObjectPool<NettyClient> keyPool = getXpipeNettyClientKeyedObjectPool().getKeyPool(new InetSocketAddress("127.0.0.1", port));
+            SimpleObjectPool<NettyClient> keyPool = getXpipeNettyClientKeyedObjectPool().getKeyPool(new DefaultEndPoint("127.0.0.1", port));
             new PingCommand(keyPool, scheduled).execute().get();
         }
 
@@ -36,7 +36,7 @@ public class DefaultSlaveOfCommandTest extends AbstractRedisTest {
 
         for(int i = 0; i < count ;i++){
             int port = begin + i;
-            SimpleObjectPool<NettyClient> keyPool = getXpipeNettyClientKeyedObjectPool().getKeyPool(new InetSocketAddress("127.0.0.1", port));
+            SimpleObjectPool<NettyClient> keyPool = getXpipeNettyClientKeyedObjectPool().getKeyPool(new DefaultEndPoint("127.0.0.1", port));
             long beginTime = System.currentTimeMillis();
             new DefaultSlaveOfCommand(keyPool, "127.0.0.1", 0, scheduled).execute(executors).addListener(new CommandFutureListener<String>() {
                 @Override

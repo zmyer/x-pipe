@@ -7,7 +7,6 @@ import com.ctrip.xpipe.redis.core.meta.ShardStatus;
 import com.ctrip.xpipe.redis.keeper.RedisKeeperServer.PROMOTION_STATE;
 
 import java.io.IOException;
-import java.net.InetSocketAddress;
 
 /**
  * @author wenchao.meng
@@ -16,9 +15,9 @@ import java.net.InetSocketAddress;
  */
 public interface RedisKeeperServerState{
 	
-	void becomeActive(InetSocketAddress masterAddress);
+	void becomeActive(Endpoint masterAddress);
 	
-	void becomeBackup(InetSocketAddress masterAddress);
+	void becomeBackup(Endpoint masterAddress);
 	
 	void setShardStatus(ShardStatus shardStatus) throws IOException;
 	
@@ -36,7 +35,7 @@ public interface RedisKeeperServerState{
 	
 	KeeperState keeperState();
 
-	void setMasterAddress(InetSocketAddress masterAddress);
+	void setMasterAddress(Endpoint masterAddress);
 
 	boolean handleSlaveOf();
 	

@@ -1,13 +1,12 @@
 package com.ctrip.xpipe.utils;
 
-import java.net.Inet6Address;
-import java.net.InetSocketAddress;
-import java.util.LinkedList;
-
+import com.ctrip.xpipe.AbstractTest;
 import org.junit.Assert;
 import org.junit.Test;
 
-import com.ctrip.xpipe.AbstractTest;
+import java.net.Inet6Address;
+import java.net.InetSocketAddress;
+import java.util.LinkedList;
 
 /**
  * @author wenchao.meng
@@ -64,6 +63,18 @@ public class IpUtilsTest extends AbstractTest{
 
 			}
 		});
+	}
+
+	@Test
+	public void testIpSplit() {
+		String ip = "10";
+		Assert.assertEquals(1, IpUtils.splitIpAddr(ip).length);
+		Assert.assertEquals(ip, IpUtils.splitIpAddr(ip)[0]);
+
+		ip = "10.26";
+		Assert.assertEquals(2, IpUtils.splitIpAddr(ip).length);
+		Assert.assertEquals("10", IpUtils.splitIpAddr(ip)[0]);
+		Assert.assertEquals("26", IpUtils.splitIpAddr(ip)[1]);
 	}
 
 

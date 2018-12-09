@@ -18,6 +18,8 @@ import java.net.*;
 import java.util.Calendar;
 import java.util.Enumeration;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 
 /**
@@ -28,6 +30,17 @@ import java.util.function.Function;
 public class SimpleTest extends AbstractRedisTest {
 
 	private Logger logger = LoggerFactory.getLogger(getClass());
+
+	@Test
+	public void testMap(){
+
+		Map<String, String> map = new ConcurrentHashMap<>();
+
+		map.put("1", null);
+		logger.info("1:{}", map.get("1"));
+		logger.info("2:{}", map.get("2"));
+
+	}
 
 	@Test
 	public void testServer() throws Exception {
@@ -59,6 +72,10 @@ public class SimpleTest extends AbstractRedisTest {
 
 		File f = new File("/opt/logs/test");
 		logger.info("[exist]{}", f.exists());
+		logger.info("[exist]{}", f.getParent());
+
+		String parent = f.getParent();
+
 
 	}
 

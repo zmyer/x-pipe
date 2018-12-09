@@ -19,7 +19,6 @@ import org.mockito.Mock;
 import org.mockito.runners.MockitoJUnitRunner;
 
 import java.io.IOException;
-import java.net.InetSocketAddress;
 
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -48,7 +47,7 @@ public class DefaultPsyncTest extends AbstractRedisTest{
 		
 		FakeRedisServer fakeRedisServer = startFakeRedisServer();
 		Endpoint masterEndPoint = new DefaultEndPoint("localhost", fakeRedisServer.getPort());
-		SimpleObjectPool<NettyClient> pool = NettyPoolUtil.createNettyPool(new InetSocketAddress("localhost", fakeRedisServer.getPort()));
+		SimpleObjectPool<NettyClient> pool = NettyPoolUtil.createNettyPool(new DefaultEndPoint("localhost", fakeRedisServer.getPort()));
 		
 		when(replicationStoreManager.createIfNotExist()).thenReturn(replicationStore);
 		when(replicationStore.getMetaStore()).thenReturn(metaStore);

@@ -1,5 +1,6 @@
 package com.ctrip.xpipe.redis.console.resources;
 
+import com.ctrip.xpipe.api.foundation.FoundationService;
 import com.ctrip.xpipe.api.monitor.Task;
 import com.ctrip.xpipe.api.monitor.TransactionMonitor;
 import com.ctrip.xpipe.concurrent.AbstractExceptionLogTask;
@@ -15,6 +16,7 @@ import com.ctrip.xpipe.spring.AbstractProfile;
 import com.ctrip.xpipe.tuple.Pair;
 import com.ctrip.xpipe.utils.IpUtils;
 import com.ctrip.xpipe.utils.StringUtil;
+import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -43,6 +45,8 @@ public class DefaultMetaCache implements MetaCache {
     private int refreshIntervalMilli = 2000;
 
     private Logger logger = LoggerFactory.getLogger(getClass());
+
+    private static final String CONSOLE_IDC = FoundationService.DEFAULT.getDataCenter();
 
     @Autowired
     private DcMetaService dcMetaService;
@@ -112,7 +116,7 @@ public class DefaultMetaCache implements MetaCache {
         try {
             return meta.getKey();
         } catch (Exception e) {
-            logger.error("[getXpipeMeta]", e);
+            logger.debug("[getXpipeMeta]", e);
         }
         return null;
     }
@@ -174,6 +178,31 @@ public class DefaultMetaCache implements MetaCache {
         }
 
         return new Pair<>(metaDesc.getClusterId(), metaDesc.getShardId());
+    }
+
+    @Override
+    public RouteMeta getRouteIfPossible(HostPort hostPort) {
+        XpipeMetaManager xpipeMetaManager = meta.getValue();
+        XpipeMetaManager.MetaDesc metaDesc = xpipeMetaManager.findMetaDesc(hostPort);
+        return xpipeMetaManager
+                .consoleRandomRoute(CONSOLE_IDC, XpipeMetaManager.ORG_ID_FOR_SHARED_ROUTES, metaDesc.getDcId());
+    }
+
+    @Override
+    public List<HostPort> getAllRedisOfDc(String dcId) {
+        List<HostPort> result = Lists.newLinkedList();
+        try {
+            for(ClusterMeta clusterMeta : meta.getKey().findDc(dcId).getClusters().values()) {
+                for (ShardMeta shardMeta : clusterMeta.getShards().values()) {
+                    for(RedisMeta redis : shardMeta.getRedises()) {
+                        result.add(new HostPort(redis.getIp(), redis.getPort()));
+                    }
+                }
+            }
+        } catch (Exception e) {
+            logger.error("[getRedisNumOfDc]", e);
+        }
+        return result;
     }
 
     @Override
@@ -250,9 +279,12 @@ public class DefaultMetaCache implements MetaCache {
         if(StringUtil.isEmpty(monitor)) {
             return null;
         }
-        if(monitor2ClusterShard.containsKey(monitor)) {
-            return monitor2ClusterShard.get(monitor);
+
+        Pair<String, String> clusterShard = monitor2ClusterShard.get(monitor);
+        if(clusterShard != null) {
+            return clusterShard;
         }
+
         try {
             XpipeMeta xpipeMeta = meta.getKey();
             for (DcMeta dcMeta : xpipeMeta.getDcs().values()) {
@@ -262,15 +294,18 @@ public class DefaultMetaCache implements MetaCache {
                         monitor2ClusterShard.put(shardMeta.getSentinelMonitorName(),
                                 new Pair<>(clusterMeta.getId(), shardMeta.getId()));
 
-                        if (shardMeta.getSentinelMonitorName().equals(monitor)) {
-                            return new Pair<>(clusterMeta.getId(), shardMeta.getId());
-                        }
                     }
                 }
             }
         } catch (Exception e) {
             logger.error("[findClusterShardBySentinelMonitor]", e);
         }
-        return null;
+        return monitor2ClusterShard.get(monitor);
+    }
+
+    @Override
+    public String getActiveDc(String clusterId, String shardId){
+        XpipeMetaManager xpipeMetaManager  =  meta.getValue();
+        return xpipeMetaManager.getActiveDc(clusterId, shardId);
     }
 }

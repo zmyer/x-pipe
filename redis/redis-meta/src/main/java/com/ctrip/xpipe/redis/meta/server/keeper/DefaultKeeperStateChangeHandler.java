@@ -1,5 +1,6 @@
 package com.ctrip.xpipe.redis.meta.server.keeper;
 
+import com.ctrip.xpipe.api.endpoint.Endpoint;
 import com.ctrip.xpipe.api.lifecycle.TopElement;
 import com.ctrip.xpipe.api.pool.SimpleKeyedObjectPool;
 import com.ctrip.xpipe.concurrent.DefaultExecutorFactory;
@@ -8,6 +9,7 @@ import com.ctrip.xpipe.lifecycle.AbstractLifecycle;
 import com.ctrip.xpipe.netty.commands.NettyClient;
 import com.ctrip.xpipe.redis.core.entity.KeeperMeta;
 import com.ctrip.xpipe.redis.core.entity.RedisMeta;
+import com.ctrip.xpipe.redis.core.entity.RouteMeta;
 import com.ctrip.xpipe.redis.meta.server.MetaServerStateChangeHandler;
 import com.ctrip.xpipe.redis.meta.server.job.DefaultSlaveOfJob;
 import com.ctrip.xpipe.redis.meta.server.job.KeeperStateChangeJob;
@@ -17,19 +19,15 @@ import com.ctrip.xpipe.redis.meta.server.spring.MetaServerContextConfig;
 import com.ctrip.xpipe.spring.AbstractSpringConfigContext;
 import com.ctrip.xpipe.tuple.Pair;
 import com.ctrip.xpipe.utils.OsUtils;
-import com.ctrip.xpipe.utils.XpipeThreadFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import javax.annotation.Resource;
-import java.net.InetSocketAddress;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 
 /**
@@ -43,7 +41,7 @@ public class DefaultKeeperStateChangeHandler extends AbstractLifecycle implement
 	protected static Logger logger = LoggerFactory.getLogger(DefaultKeeperStateChangeHandler.class);
 
 	@Resource(name = MetaServerContextConfig.CLIENT_POOL)
-	private SimpleKeyedObjectPool<InetSocketAddress, NettyClient> clientPool;
+	private SimpleKeyedObjectPool<Endpoint, NettyClient> clientPool;
 
 	@Resource(name = AbstractSpringConfigContext.SCHEDULED_EXECUTOR)
 	private ScheduledExecutorService scheduled;
@@ -84,7 +82,15 @@ public class DefaultKeeperStateChangeHandler extends AbstractLifecycle implement
 		List<KeeperMeta> keepers = new LinkedList<>();
 		keepers.add(activeKeeper);
 		
-		keyedOneThreadTaskExecutor.execute(new Pair<String, String>(clusterId, shardId), new KeeperStateChangeJob(keepers, newMaster, clientPool, scheduled, executors));
+		keyedOneThreadTaskExecutor.execute(
+				new Pair<String, String>(clusterId, shardId),
+				createKeeperStateChangeJob(clusterId, keepers, newMaster));
+	}
+
+	private KeeperStateChangeJob createKeeperStateChangeJob(String clusterId, List<KeeperMeta> keepers, Pair<String, Integer> master) {
+
+		RouteMeta routeMeta = currentMetaManager.randomRoute(clusterId);
+		return new KeeperStateChangeJob(keepers, master, routeMeta, clientPool, scheduled, executors);
 	}
 
 	@Override
@@ -98,11 +104,12 @@ public class DefaultKeeperStateChangeHandler extends AbstractLifecycle implement
 			return;
 		}
 		Pair<String, Integer> activeKeeperMaster = currentMetaManager.getKeeperMaster(clusterId, shardId);
-		KeeperStateChangeJob keeperStateChangeJob = new KeeperStateChangeJob(keepers, activeKeeperMaster, clientPool, scheduled, executors);
+
+		KeeperStateChangeJob keeperStateChangeJob = createKeeperStateChangeJob(clusterId, keepers, activeKeeperMaster);
 
 		if (!dcMetaCache.isCurrentDcPrimary(clusterId, shardId)) {
 			List<RedisMeta> slaves = dcMetaCache.getShardRedises(clusterId, shardId);
-			logger.info("[keeperActiveElected][current dc backup, set slave to new keeper]{},{}", clusterId, shardId,
+			logger.info("[keeperActiveElected][current dc backup, set slave to new keeper]{},{},{}", clusterId, shardId,
 					slaves);
 			keeperStateChangeJob.setActiveSuccessCommand(new DefaultSlaveOfJob(slaves, activeKeeper.getIp(), activeKeeper.getPort(), clientPool, scheduled, executors));
 		}
@@ -126,7 +133,7 @@ public class DefaultKeeperStateChangeHandler extends AbstractLifecycle implement
 		this.dcMetaCache = dcMetaCache;
 	}
 	
-	public void setClientPool(SimpleKeyedObjectPool<InetSocketAddress, NettyClient> clientPool) {
+	public void setClientPool(SimpleKeyedObjectPool<Endpoint, NettyClient> clientPool) {
 		this.clientPool = clientPool;
 	}
 	

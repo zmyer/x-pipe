@@ -1,12 +1,15 @@
 package com.ctrip.xpipe.redis.console.health;
 
-import com.ctrip.xpipe.AbstractTest;
-import com.ctrip.xpipe.redis.console.health.delay.DefaultDelayMonitor;
+import com.ctrip.xpipe.endpoint.HostPort;
+import com.ctrip.xpipe.redis.console.AbstractConsoleH2DbTest;
+import com.ctrip.xpipe.redis.console.healthcheck.actions.delay.DelayAction;
+import com.ctrip.xpipe.redis.console.healthcheck.session.DefaultRedisSessionManager;
+import com.ctrip.xpipe.redis.console.healthcheck.session.PingCallback;
+import com.ctrip.xpipe.redis.console.healthcheck.session.RedisSession;
 import com.ctrip.xpipe.redis.console.resources.MetaCache;
 import com.ctrip.xpipe.redis.core.entity.DcMeta;
 import com.ctrip.xpipe.redis.core.entity.XpipeMeta;
 import com.ctrip.xpipe.simpleserver.Server;
-import com.ctrip.xpipe.utils.OsUtils;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -15,7 +18,6 @@ import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
 import java.util.concurrent.Callable;
-import java.util.concurrent.Executors;
 
 import static org.mockito.Mockito.when;
 
@@ -24,7 +26,7 @@ import static org.mockito.Mockito.when;
  * <p>
  * Jan 23, 2018
  */
-public class RemoveUnusedRedisTest extends AbstractTest {
+public class RemoveUnusedRedisTest extends AbstractConsoleH2DbTest {
 
     private Server server;
 
@@ -43,8 +45,6 @@ public class RemoveUnusedRedisTest extends AbstractTest {
         // mock datas
         XpipeMeta xpipeMeta = new XpipeMeta().addDc(new DcMeta());
         when(metaCache.getXpipeMeta()).thenReturn(xpipeMeta);
-        manager.executors = Executors.newFixedThreadPool(OsUtils.getCpuCount());
-        manager.pingAndDelayExecutor = Executors.newFixedThreadPool(OsUtils.getCpuCount());
 
         // random port to avoid port conflict
         port = randomPort();
@@ -60,7 +60,7 @@ public class RemoveUnusedRedisTest extends AbstractTest {
     @Test
     public void testRemoveUnusedRedis() throws Exception {
         String host = "127.0.0.1";
-        RedisSession session = manager.findOrCreateSession(host, port);
+        RedisSession session = manager.findOrCreateSession(new HostPort(host, port));
 
         // Build two types connection
         try {
@@ -75,7 +75,7 @@ public class RemoveUnusedRedisTest extends AbstractTest {
 
                 }
             });
-            session.subscribeIfAbsent(DefaultDelayMonitor.CHECK_CHANNEL, new RedisSession.SubscribeCallback() {
+            session.subscribeIfAbsent(DelayAction.CHECK_CHANNEL, new RedisSession.SubscribeCallback() {
                 @Override
                 public void message(String channel, String message) {
 
@@ -94,7 +94,7 @@ public class RemoveUnusedRedisTest extends AbstractTest {
         Assert.assertEquals(2, server.getConnected());
 
         // Call remove redis session method
-        manager.removeUnusedRedises();
+//        manager.removeUnusedRedises();
 
         // Check if all connections are closed
         waitConditionUntilTimeOut(() -> server.getConnected() == 0, 3000);

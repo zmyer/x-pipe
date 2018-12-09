@@ -20,7 +20,6 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.net.InetSocketAddress;
 
 /**
  * @author wenchao.meng
@@ -49,7 +48,7 @@ public class PsyncTest extends AbstractRedisKeeperTest{
 		LifecycleHelper.initializeIfPossible(replicationStoreManager);
 		replicationStore = (DefaultReplicationStore) replicationStoreManager.create();
 		
-		SimpleObjectPool<NettyClient> clientPool = NettyPoolUtil.createNettyPool(new InetSocketAddress("127.0.0.1", 1234));
+		SimpleObjectPool<NettyClient> clientPool = NettyPoolUtil.createNettyPool(new DefaultEndPoint("127.0.0.1", 1234));
 		psync = new DefaultPsync(clientPool, new DefaultEndPoint("127.0.0.1", 1234), replicationStoreManager, scheduled);
 		psync.future().addListener(new CommandFutureListener<Object>() {
 			

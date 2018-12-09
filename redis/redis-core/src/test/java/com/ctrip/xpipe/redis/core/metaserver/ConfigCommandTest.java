@@ -1,11 +1,11 @@
 package com.ctrip.xpipe.redis.core.metaserver;
 
+import com.ctrip.xpipe.endpoint.DefaultEndPoint;
 import com.ctrip.xpipe.redis.core.AbstractRedisTest;
 import com.ctrip.xpipe.redis.core.protocal.cmd.ConfigGetCommand.ConfigGetMinSlavesToWrite;
 import com.ctrip.xpipe.redis.core.protocal.cmd.ConfigSetCommand.ConfigSetMinSlavesToWrite;
 import org.junit.Test;
 
-import java.net.InetSocketAddress;
 import java.util.concurrent.ExecutionException;
 
 /**
@@ -21,8 +21,8 @@ public class ConfigCommandTest extends AbstractRedisTest{
 	
 	@Test
 	public void testConfigMinSlaves() throws InterruptedException, ExecutionException, Exception{
-		
-		InetSocketAddress address = new InetSocketAddress(ip, port);
+
+		DefaultEndPoint address = new DefaultEndPoint(ip, port);
 		
 		Integer min = new ConfigGetMinSlavesToWrite(getXpipeNettyClientKeyedObjectPool().getKeyPool(address), scheduled).execute().get();
 		logger.info("{}", min);

@@ -1,10 +1,5 @@
 package com.ctrip.xpipe.service.migration;
 
-import java.net.InetSocketAddress;
-import java.util.Arrays;
-import java.util.List;
-import java.util.concurrent.Callable;
-
 import com.ctrip.xpipe.api.migration.DC_TRANSFORM_DIRECTION;
 import com.ctrip.xpipe.api.migration.DcMapper;
 import com.ctrip.xpipe.api.migration.OuterClientException;
@@ -13,11 +8,15 @@ import com.ctrip.xpipe.endpoint.ClusterShardHostPort;
 import com.ctrip.xpipe.endpoint.HostPort;
 import com.ctrip.xpipe.migration.AbstractOuterClientService;
 import com.ctrip.xpipe.monitor.CatTransactionMonitor;
+import com.ctrip.xpipe.spring.RestTemplateFactory;
 import com.ctrip.xpipe.utils.DateTimeUtils;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import org.springframework.web.client.RestOperations;
 
-import com.ctrip.xpipe.spring.RestTemplateFactory;
+import java.net.InetSocketAddress;
+import java.util.Arrays;
+import java.util.List;
+import java.util.concurrent.Callable;
 
 /**
  * @author shyin
@@ -76,7 +75,7 @@ public class CRedisService extends AbstractOuterClientService {
 					String address = CREDIS_SERVICE.SWITCH_STATUS.getRealPath(credisConfig.getCredisServiceAddress());
                     HostPort hostPort = clusterShardHostPort.getHostPort();
                     MarkInstanceResponse response =
-                            restOperations.postForObject(address, new MarkInstanceRequest(hostPort.getHost(), hostPort.getPort(), state), MarkInstanceResponse.class);
+                            restOperations.postForObject(address + "?ip={ip}&port={port}&canRead={canRead}", null, MarkInstanceResponse.class, hostPort.getHost(), hostPort.getPort(), state);
                     logger.info("[doMarkInstance][ end ]{},{},{}", clusterShardHostPort, state, response);
                     if(!response.isSuccess()){
                         throw new IllegalStateException(String.format("%s %s, response:%s", clusterShardHostPort, state, response));
@@ -135,7 +134,7 @@ public class CRedisService extends AbstractOuterClientService {
 			public ClusterInfo call() throws Exception {
 
 				String address = CREDIS_SERVICE.QUERY_CLUSTER.getRealPath(credisConfig.getCredisServiceAddress());
-				ClusterInfo clusterInfo = restOperations.getForObject(address, ClusterInfo.class, clusterName);
+				ClusterInfo clusterInfo = restOperations.getForObject(address + "?name={clusterName}", ClusterInfo.class, clusterName);
 				clusterInfo.mapIdc(DC_TRANSFORM_DIRECTION.OUTER_TO_INNER);
 				return clusterInfo;
 			}

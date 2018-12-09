@@ -1,15 +1,15 @@
 package com.ctrip.xpipe.netty;
 
-import java.net.SocketAddress;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicLong;
-
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelPromise;
 import io.netty.channel.FileRegion;
 import io.netty.util.concurrent.ScheduledFuture;
+
+import java.net.SocketAddress;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * @author leoliang
@@ -182,5 +182,13 @@ public abstract class ChannelTrafficStatisticsHandler extends AbstractNettyHandl
                 nextCheck = ctx.executor().schedule(this, reportIntervalMillis, TimeUnit.MILLISECONDS);
             }
         }
+    }
+
+    protected long getWrittenBytes() {
+        return writtenBytes.get();
+    }
+
+    protected long getReadBytes() {
+        return readBytes.get();
     }
 }

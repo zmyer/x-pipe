@@ -3,20 +3,22 @@ package com.ctrip.xpipe.redis.meta.server.job;
 import com.ctrip.xpipe.api.command.Command;
 import com.ctrip.xpipe.api.command.CommandFuture;
 import com.ctrip.xpipe.api.command.CommandFutureListener;
+import com.ctrip.xpipe.api.endpoint.Endpoint;
 import com.ctrip.xpipe.api.pool.SimpleKeyedObjectPool;
 import com.ctrip.xpipe.api.pool.SimpleObjectPool;
 import com.ctrip.xpipe.command.AbstractCommand;
 import com.ctrip.xpipe.command.CommandExecutionException;
 import com.ctrip.xpipe.command.CommandRetryWrapper;
 import com.ctrip.xpipe.command.ParallelCommandChain;
+import com.ctrip.xpipe.endpoint.DefaultEndPoint;
 import com.ctrip.xpipe.exception.ExceptionUtils;
 import com.ctrip.xpipe.netty.commands.NettyClient;
 import com.ctrip.xpipe.pool.XpipeObjectPoolFromKeyed;
 import com.ctrip.xpipe.redis.core.entity.RedisMeta;
 import com.ctrip.xpipe.redis.core.protocal.error.RedisError;
 import com.ctrip.xpipe.retry.RetryDelay;
+import com.ctrip.xpipe.utils.StringUtil;
 
-import java.net.InetSocketAddress;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.Executor;
@@ -32,13 +34,13 @@ public abstract class AbstractRedisesSlaveofJob extends AbstractCommand<Void>{
 	private List<RedisMeta> redises;
 	private String masterHost;
 	private int masterPort;
-	private SimpleKeyedObjectPool<InetSocketAddress, NettyClient> clientPool;
+	private SimpleKeyedObjectPool<Endpoint, NettyClient> clientPool;
 	private int delayBaseMilli = 100;
 	private int retryTimes = 1;
 	protected ScheduledExecutorService scheduled;
 	protected Executor executors;
 
-	public AbstractRedisesSlaveofJob(List<RedisMeta> slaves, String masterHost, int masterPort, SimpleKeyedObjectPool<InetSocketAddress, NettyClient> clientPool, ScheduledExecutorService scheduled, Executor executors){
+	public AbstractRedisesSlaveofJob(List<RedisMeta> slaves, String masterHost, int masterPort, SimpleKeyedObjectPool<Endpoint, NettyClient> clientPool, ScheduledExecutorService scheduled, Executor executors){
 		this.redises = new LinkedList<>(slaves);
 		this.masterHost = masterHost;
 		this.masterPort = masterPort;
@@ -77,7 +79,7 @@ public abstract class AbstractRedisesSlaveofJob extends AbstractCommand<Void>{
 
 	private Command<?> createSlaveofCommand(RedisMeta redisMeta, String masterHost, int masterPort) {
 		
-		SimpleObjectPool<NettyClient> pool = new XpipeObjectPoolFromKeyed<InetSocketAddress, NettyClient>(clientPool, new InetSocketAddress(redisMeta.getIp(), redisMeta.getPort()));
+		SimpleObjectPool<NettyClient> pool = new XpipeObjectPoolFromKeyed<Endpoint, NettyClient>(clientPool, new DefaultEndPoint(redisMeta.getIp(), redisMeta.getPort()));
 		
 		Command<?> command =  createSlaveOfCommand(pool, masterHost, masterPort);
 		return CommandRetryWrapper.buildCountRetry(retryTimes, new RetryDelay(delayBaseMilli){
@@ -104,7 +106,7 @@ public abstract class AbstractRedisesSlaveofJob extends AbstractCommand<Void>{
 	
 	@Override
 	public String toString() {
-		return String.format("%s -> %s:%d", redises, masterHost, masterPort);
+		return String.format("[%s] slaveof %s:%d", StringUtil.join(",", (redis)-> redis.desc(), redises), masterHost, masterPort);
 	}
 	
 }

@@ -1,9 +1,11 @@
 package com.ctrip.xpipe.redis.console.resources;
 
 import com.ctrip.xpipe.endpoint.HostPort;
+import com.ctrip.xpipe.redis.core.entity.RouteMeta;
 import com.ctrip.xpipe.redis.core.entity.XpipeMeta;
 import com.ctrip.xpipe.tuple.Pair;
 
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -32,4 +34,10 @@ public interface MetaCache {
     String getDc(HostPort hostPort);
 
     Pair<String, String> findClusterShardBySentinelMonitor(String monitor);
+
+    RouteMeta getRouteIfPossible(HostPort hostPort);
+
+    List<HostPort> getAllRedisOfDc(String dcId);
+
+    String getActiveDc(String clusterId, String shardId);
 }

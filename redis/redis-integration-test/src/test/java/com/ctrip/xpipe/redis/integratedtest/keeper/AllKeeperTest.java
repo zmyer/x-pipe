@@ -22,8 +22,10 @@ import org.junit.runners.Suite.SuiteClasses;
 	KeeperSingleDcEof.class,
 	KeeperMultiDc.class,
 	KeeperSingleDcWaitForOffset.class,
-	KeeperSingleDcVersionTest.class
-	})
+	KeeperSingleDcVersionTest.class,
+	XRedisXpipeCommandTest.class,
+	XRedisPartialTest.class
+})
 public class AllKeeperTest {
 	
 	/*

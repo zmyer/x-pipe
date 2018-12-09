@@ -114,6 +114,22 @@ public final class DefaultDcMetaManager implements DcMetaManager{
 	}
 
 	@Override
+	public RouteMeta randomRoute(String clusterId) {
+
+		ClusterMeta clusterMeta = metaManager.getClusterMeta(currentDc, clusterId);
+		if(clusterMeta == null){
+			throw new IllegalArgumentException("clusterId not exist:" + clusterId);
+		}
+		return metaManager.metaRandomRoutes(currentDc, clusterMeta.getOrgId(), clusterMeta.getActiveDc());
+	}
+
+	@Override
+	public List<ClusterMeta> getSpecificActiveDcClusters(String clusterActiveDc) {
+
+		return metaManager.getSpecificActiveDcClusters(currentDc, clusterActiveDc);
+	}
+
+	@Override
 	public KeeperContainerMeta getKeeperContainer(KeeperMeta keeperMeta) {
 		return metaManager.getKeeperContainer(currentDc, keeperMeta);
 	}

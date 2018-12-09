@@ -1,15 +1,15 @@
 package com.ctrip.xpipe.command;
 
+import com.ctrip.xpipe.api.command.Command;
+import com.ctrip.xpipe.api.command.CommandFuture;
+import com.ctrip.xpipe.api.command.CommandFutureListener;
+import com.ctrip.xpipe.utils.XpipeThreadFactory;
+
 import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-
-import com.ctrip.xpipe.api.command.Command;
-import com.ctrip.xpipe.api.command.CommandFuture;
-import com.ctrip.xpipe.api.command.CommandFutureListener;
-import com.ctrip.xpipe.utils.XpipeThreadFactory;
 
 /**
  * @author wenchao.meng
@@ -21,11 +21,21 @@ public class ParallelCommandChain extends AbstractCommandChain{
 	private Executor executors;
 	private List<CommandFuture<?>> completed = new LinkedList<>();
 
+	private boolean isLoggable = true;
+
 	public ParallelCommandChain(Executor executors){
 		this.executors = executors;
 		if(this.executors == null){
 			this.executors = Executors.newCachedThreadPool(XpipeThreadFactory.create("ParallelCommandChain"));
 		}
+	}
+
+	public ParallelCommandChain(Executor executors, boolean loggable){
+		this.executors = executors;
+		if(this.executors == null){
+			this.executors = Executors.newCachedThreadPool(XpipeThreadFactory.create("ParallelCommandChain"));
+		}
+		isLoggable = loggable;
 	}
 
 	public ParallelCommandChain(Command<?> ...commands) {
@@ -75,8 +85,10 @@ public class ParallelCommandChain extends AbstractCommandChain{
 			return;
 		}
 		
-		if(completed.size() >= getResult().size()){
-			logger.info("[addComplete][all complete]{}", completed.size());
+		if(completed.size() >= commands.size()){
+			if(isLoggable) {
+				logger.info("[addComplete][all complete]{}, {}", completed.size(), getResult().size());
+			}
 			boolean fail = false;
 			for(CommandFuture<?> future : completed){
 				if(!future.isSuccess()){

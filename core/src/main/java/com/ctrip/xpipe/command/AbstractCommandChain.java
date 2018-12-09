@@ -1,13 +1,13 @@
 package com.ctrip.xpipe.command;
 
 
-import java.util.LinkedList;
-import java.util.List;
-import java.util.concurrent.atomic.AtomicInteger;
-
 import com.ctrip.xpipe.api.command.Command;
 import com.ctrip.xpipe.api.command.CommandChain;
 import com.ctrip.xpipe.api.command.CommandFuture;
+
+import java.util.LinkedList;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * @author wenchao.meng
@@ -15,7 +15,7 @@ import com.ctrip.xpipe.api.command.CommandFuture;
  * Jul 1, 2016
  */
 public abstract class AbstractCommandChain extends AbstractCommand<Object> implements CommandChain<Object>{
-	
+
 	protected final List<Command<?>>  commands = new LinkedList<>();
 	
 	private final List<CommandFuture<?>> result = new LinkedList<>();
@@ -102,15 +102,15 @@ public abstract class AbstractCommandChain extends AbstractCommand<Object> imple
 	}
 	
 	protected CommandFuture<?> executeNext(){
-		
-		current.incrementAndGet();
-		Command<?> command = getCommand(current.get());
+
+		int currentIndex = current.incrementAndGet();
+		Command<?> command = getCommand(currentIndex);
 		if(command == null){
 			return null;
 		}
 		return executeCommand(command);
 	}
-	
+
 	@Override
 	public int executeCount() {
 		return current.get() + 1;

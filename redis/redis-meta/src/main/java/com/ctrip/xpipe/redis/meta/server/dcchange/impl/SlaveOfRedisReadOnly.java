@@ -2,11 +2,11 @@ package com.ctrip.xpipe.redis.meta.server.dcchange.impl;
 
 import com.ctrip.xpipe.api.command.Command;
 import com.ctrip.xpipe.api.pool.SimpleObjectPool;
+import com.ctrip.xpipe.endpoint.DefaultEndPoint;
 import com.ctrip.xpipe.netty.commands.NettyClient;
 import com.ctrip.xpipe.pool.XpipeNettyClientKeyedObjectPool;
 import com.ctrip.xpipe.redis.core.protocal.cmd.DefaultSlaveOfCommand;
 
-import java.net.InetSocketAddress;
 import java.util.concurrent.ScheduledExecutorService;
 
 /**
@@ -27,7 +27,7 @@ public class SlaveOfRedisReadOnly extends AbstractRedisReadOnly{
 	@Override
 	protected Command<?> createReadOnlyCommand() {
 
-		SimpleObjectPool<NettyClient> clientPool = keyedObjectPool.getKeyPool(new InetSocketAddress(ip, port));
+		SimpleObjectPool<NettyClient> clientPool = keyedObjectPool.getKeyPool(new DefaultEndPoint(ip, port));
 
 		return new DefaultSlaveOfCommand(clientPool, slaveHost, slavePort, scheduled);
 	}
@@ -35,7 +35,7 @@ public class SlaveOfRedisReadOnly extends AbstractRedisReadOnly{
 	@Override
 	protected Command<?> createWritableCommand() {
 		
-		SimpleObjectPool<NettyClient> clientPool = keyedObjectPool.getKeyPool(new InetSocketAddress(ip, port));
+		SimpleObjectPool<NettyClient> clientPool = keyedObjectPool.getKeyPool(new DefaultEndPoint(ip, port));
 		return new DefaultSlaveOfCommand(clientPool, scheduled);
 	}
 

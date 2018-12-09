@@ -35,19 +35,15 @@
 
 package com.ctrip.xpipe.utils;
 
+import sun.misc.Unsafe;
+
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Date;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.locks.AbstractOwnableSynchronizer;
-import java.util.concurrent.locks.Condition;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.LockSupport;
-import java.util.concurrent.locks.ReadWriteLock;
-
-import sun.misc.Unsafe;
+import java.util.concurrent.locks.*;
 
 /**
  * Provides a framework for implementing blocking locks and related
@@ -673,7 +669,7 @@ public abstract class AbstractQueuedSynchronizer
     }
 
     /**
-     * Release action for shared mode -- signal successor and ensure
+     * Release interaction for shared mode -- signal successor and ensure
      * propagation. (Note: For exclusive mode, release just amounts
      * to calling unparkSuccessor of head if it needs signal.)
      */
@@ -761,7 +757,7 @@ public abstract class AbstractQueuedSynchronizer
 
         // predNext is the apparent node to unsplice. CASes below will
         // fail if not, in which case, we lost race vs another cancel
-        // or signal, so no further action is necessary.
+        // or signal, so no further interaction is necessary.
         Node predNext = pred.next;
 
         // Can use unconditional write instead of CAS here.

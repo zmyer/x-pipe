@@ -63,10 +63,11 @@ public class RedisDao extends AbstractXpipeConsoleDAO {
     }
 
     @DalTransaction
-    public void createRedisesBatch(List<RedisTbl> redises) throws DalException {
+    public int[] createRedisesBatch(List<RedisTbl> redises) {
         if (null != redises) {
             Map<Long, String> cache = new HashMap<Long, String>();
             for (RedisTbl redis : redises) {
+                checkRedisNotExist(redis);
                 if (redis.getRedisRole().equals(XPipeConsoleConstant.ROLE_KEEPER)) {
                     if (null == cache.get(redis.getDcClusterShardId())) {
                         String newKeeperId = getToCreateKeeperId(redis);
@@ -77,7 +78,27 @@ public class RedisDao extends AbstractXpipeConsoleDAO {
                     }
                 }
             }
-            redisTblDao.insertBatch(redises.toArray(new RedisTbl[redises.size()]));
+
+            return queryHandler.handleBatchInsert(new DalQuery<int[]>() {
+                @Override
+                public int[] doQuery() throws DalException {
+                    return redisTblDao.insertBatch(redises.toArray(new RedisTbl[redises.size()]));
+                }
+            });
+
+        }
+        return null;
+    }
+
+    private void checkRedisNotExist(RedisTbl redisTbl) {
+        RedisTbl otherRedis = queryHandler.handleQuery(new DalQuery<RedisTbl>() {
+            @Override
+            public RedisTbl doQuery() throws DalException {
+                return redisTblDao.findWithIpPort(redisTbl.getRedisIp(), redisTbl.getRedisPort(), RedisTblEntity.READSET_IP_AND_PORT);
+            }
+        });
+        if(otherRedis != null) {
+            throw new IllegalArgumentException("Redis already exists, " + otherRedis.getRedisIp() + ":" + otherRedis.getRedisPort());
         }
     }
 
@@ -93,20 +114,25 @@ public class RedisDao extends AbstractXpipeConsoleDAO {
     }
 
     @DalTransaction
-    public void deleteRedisesBatch(List<RedisTbl> redises) throws DalException {
-        if (null != redises) {
+    public void deleteRedisesBatch(List<RedisTbl> redises) {
+        if (null != redises && !redises.isEmpty()) {
             for (RedisTbl redis : redises) {
                 redis.setRunId(generateDeletedName(redis.getRunId()));
             }
-            redisTblDao.deleteBatch(redises.toArray(new RedisTbl[redises.size()]), RedisTblEntity.UPDATESET_FULL);
+            queryHandler.handleBatchDelete(new DalQuery<int[]>() {
+                @Override
+                public int[] doQuery() throws DalException {
+                    return redisTblDao.deleteBatch(redises.toArray(new RedisTbl[redises.size()]), RedisTblEntity.UPDATESET_FULL);
+                }
+            }, true);
         } else {
             logger.info("[deleteRedisesBatch][null]");
         }
     }
 
     @DalTransaction
-    public int[] updateBatch(List<RedisTbl> redises) {
-        return queryHandler.handleQuery(new DalQuery<int[]>() {
+    public void updateBatch(List<RedisTbl> redises) {
+        queryHandler.handleBatchUpdate(new DalQuery<int[]>() {
             @Override
             public int[] doQuery() throws DalException {
                 return redisTblDao.updateBatch(redises.toArray(new RedisTbl[redises.size()]), RedisTblEntity.UPDATESET_FULL);
@@ -115,9 +141,9 @@ public class RedisDao extends AbstractXpipeConsoleDAO {
     }
 
     @DalTransaction
-    public int[] updateBatchMaster(List<RedisTbl> redises) {
+    public void updateBatchMaster(List<RedisTbl> redises) {
 
-        return queryHandler.handleQuery(new DalQuery<int[]>() {
+         queryHandler.handleBatchUpdate(new DalQuery<int[]>() {
             @Override
             public int[] doQuery() throws DalException {
                 return redisTblDao.updateBatchMaster(redises.toArray(new RedisTbl[redises.size()]), RedisTblEntity.UPDATESET_FULL);
@@ -127,9 +153,9 @@ public class RedisDao extends AbstractXpipeConsoleDAO {
     }
 
     @DalTransaction
-    public int[] updateBatchKeeperActive(List<RedisTbl> redises) {
+    public void updateBatchKeeperActive(List<RedisTbl> redises) {
 
-        return queryHandler.handleQuery(new DalQuery<int[]>() {
+        queryHandler.handleBatchUpdate(new DalQuery<int[]>() {
             @Override
             public int[] doQuery() throws DalException {
                 return redisTblDao.updateBatchKeeperActive(redises.toArray(new RedisTbl[redises.size()]), RedisTblEntity.UPDATESET_FULL);
@@ -182,7 +208,7 @@ public class RedisDao extends AbstractXpipeConsoleDAO {
             List<RedisTbl> keepers = findWithRole(dcClusterShardRedises, XPipeConsoleConstant.ROLE_KEEPER);
             if (null != keepers && keepers.size() > 0) {
                 RedisTbl historyKeeper = keepers.get(0);
-                if (historyKeeper.isDeleted() == true) {
+                if (historyKeeper.isDeleted()) {
                     int index = historyKeeper.getRunId().indexOf(DELETED_NAME_SPLIT_TAG);
                     if (index > 0) {
                         return historyKeeper.getRunId().substring(index + 1);

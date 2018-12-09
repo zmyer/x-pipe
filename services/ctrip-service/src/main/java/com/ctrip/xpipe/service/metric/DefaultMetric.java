@@ -5,14 +5,12 @@ import com.ctrip.xpipe.concurrent.DefaultExecutorFactory;
 import com.ctrip.xpipe.metric.MetricData;
 import com.ctrip.xpipe.metric.MetricProxy;
 import com.ctrip.xpipe.metric.MetricProxyException;
-import com.ctrip.xpipe.utils.XpipeThreadFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
 /**
  * @author wenchao.meng
@@ -33,20 +31,19 @@ public class DefaultMetric implements MetricProxy{
     }
 
     @Override
-    public void writeBinMultiDataPoint(List<MetricData> datas) throws MetricProxyException {
+    public void writeBinMultiDataPoint(MetricData data) throws MetricProxyException {
 
         for(MetricProxy metricProxy : metricProxies){
 
             try{
-
                 executors.execute(new AbstractExceptionLogTask() {
                     @Override
                     protected void doRun() throws Exception {
-                        metricProxy.writeBinMultiDataPoint(datas);
+                        metricProxy.writeBinMultiDataPoint(data);
                     }
                 });
             }catch (Exception e){
-                logger.error("[writeBinMultiDataPoint]" + datas, e);
+                logger.error("[writeBinMultiDataPoint]" + data, e);
             }
         }
     }

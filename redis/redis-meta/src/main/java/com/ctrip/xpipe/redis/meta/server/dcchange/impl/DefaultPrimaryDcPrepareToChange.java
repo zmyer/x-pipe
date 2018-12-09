@@ -1,5 +1,6 @@
 package com.ctrip.xpipe.redis.meta.server.dcchange.impl;
 
+import com.ctrip.xpipe.endpoint.DefaultEndPoint;
 import com.ctrip.xpipe.endpoint.HostPort;
 import com.ctrip.xpipe.pool.XpipeNettyClientKeyedObjectPool;
 import com.ctrip.xpipe.redis.core.metaserver.MetaServerConsoleService;
@@ -22,7 +23,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import javax.annotation.Resource;
-import java.net.InetSocketAddress;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -140,7 +140,7 @@ public class DefaultPrimaryDcPrepareToChange implements PrimaryDcPrepareToChange
     public RedisInfo getInfoReplication(Pair<String, Integer> redisMaster, ExecutionLog executionLog) {
 
         InfoReplicationComplementCommand command = new InfoReplicationComplementCommand(
-                keyedObjectPool.getKeyPool(new InetSocketAddress(redisMaster.getKey(), redisMaster.getValue())),
+                keyedObjectPool.getKeyPool(new DefaultEndPoint(redisMaster.getKey(), redisMaster.getValue())),
                 scheduled
         );
 

@@ -3,6 +3,7 @@ package com.ctrip.xpipe.redis.console.service.impl;
 import com.ctrip.xpipe.redis.console.constant.XPipeConsoleConstant;
 import com.ctrip.xpipe.redis.console.dao.RedisDao;
 import com.ctrip.xpipe.redis.console.exception.BadRequestException;
+import com.ctrip.xpipe.redis.console.exception.ServerException;
 import com.ctrip.xpipe.redis.console.model.*;
 import com.ctrip.xpipe.redis.console.notifier.ClusterMetaModifiedNotifier;
 import com.ctrip.xpipe.redis.console.query.DalQuery;
@@ -12,6 +13,7 @@ import com.ctrip.xpipe.tuple.Pair;
 import com.ctrip.xpipe.utils.MathUtil;
 import com.ctrip.xpipe.utils.ObjectUtils;
 import com.ctrip.xpipe.utils.StringUtil;
+import com.google.common.collect.Lists;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.unidal.dal.jdbc.DalException;
@@ -124,16 +126,12 @@ public class RedisServiceImpl extends AbstractConsoleService<RedisTblDao> implem
         return redisTbls;
     }
 
-    protected int[] insert(RedisTbl... redises) {
+    protected int[] insert(List<RedisTbl> redises) {
+        return redisDao.createRedisesBatch(redises);
 
-        return queryHandler.handleQuery(new DalQuery<int[]>() {
-            @Override
-            public int[] doQuery() throws DalException {
-                return dao.insertBatch(redises);
-            }
-        });
-
-
+    }
+    protected int[] insert(RedisTbl redis) {
+        return redisDao.createRedisesBatch(Lists.newArrayList(redis));
     }
 
     @Override
@@ -168,7 +166,7 @@ public class RedisServiceImpl extends AbstractConsoleService<RedisTblDao> implem
 
         validateKeepers(insertKeepers);
 
-        int[] insert = insert(insertKeepers.toArray(new RedisTbl[0]));
+        int[] insert = insert(insertKeepers);
         notifier.notifyClusterUpdate(dcId, clusterId);
         return MathUtil.sum(insert);
     }
@@ -234,8 +232,7 @@ public class RedisServiceImpl extends AbstractConsoleService<RedisTblDao> implem
             queryHandler.handleQuery(new DalQuery<Integer>() {
                 @Override
                 public Integer doQuery() throws DalException {
-                    dao.updateByPK(redis, RedisTblEntity.UPDATESET_FULL);
-                    return 0;
+                    return dao.updateByPK(redis, RedisTblEntity.UPDATESET_FULL);
                 }
             });
         }
@@ -295,13 +292,11 @@ public class RedisServiceImpl extends AbstractConsoleService<RedisTblDao> implem
     }
 
     private void updateRedises(final List<RedisTbl> toCreate, final List<RedisTbl> toDelete, final List<RedisTbl> left) {
-        queryHandler.handleQuery(new DalQuery<Integer>() {
-            @Override
-            public Integer doQuery() throws DalException {
-                redisDao.handleUpdate(toCreate, toDelete, left);
-                return 0;
-            }
-        });
+        try {
+            redisDao.handleUpdate(toCreate, toDelete, left);
+        } catch (DalException e) {
+            throw new ServerException(e.getMessage());
+        }
     }
 
     private void addRedisTbl(DcClusterShardTbl dcClusterShard, List<RedisTbl> result, List<RedisTbl> redises, String defaultRole) {
@@ -320,7 +315,7 @@ public class RedisServiceImpl extends AbstractConsoleService<RedisTblDao> implem
             proto.setId(redis.getId()).setRedisIp(redis.getRedisIp()).setRedisPort(redis.getRedisPort())
                     .setKeeperActive(redis.isKeeperActive()).setKeepercontainerId(redis.getKeepercontainerId());
 
-            proto.setMaster(redis.isMaster() ? true : false);
+            proto.setMaster(redis.isMaster());
             if (!StringUtil.isEmpty(redis.getRedisRole())) {
                 proto.setRedisRole(redis.getRedisRole());
             } else {

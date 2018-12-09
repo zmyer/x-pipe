@@ -2,6 +2,7 @@ package com.ctrip.xpipe.redis.core.protocal.cmd;
 
 import com.ctrip.xpipe.api.pool.SimpleObjectPool;
 import com.ctrip.xpipe.command.CommandTimeoutException;
+import com.ctrip.xpipe.endpoint.DefaultEndPoint;
 import com.ctrip.xpipe.netty.commands.NettyClient;
 import com.ctrip.xpipe.redis.core.AbstractRedisTest;
 import com.ctrip.xpipe.redis.core.protocal.RedisClientProtocol;
@@ -11,7 +12,6 @@ import io.netty.buffer.Unpooled;
 import org.junit.Assert;
 import org.junit.Test;
 
-import java.net.InetSocketAddress;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 
@@ -29,7 +29,7 @@ public class RedisCommandTest extends AbstractRedisTest{
 
         Server server = startEchoPrefixServer(String.valueOf((char)RedisClientProtocol.PLUS_BYTE));
 
-        SimpleObjectPool<NettyClient> keyPool = getXpipeNettyClientKeyedObjectPool().getKeyPool(new InetSocketAddress("127.0.0.1", server.getPort()));
+        SimpleObjectPool<NettyClient> keyPool = getXpipeNettyClientKeyedObjectPool().getKeyPool(new DefaultEndPoint("127.0.0.1", server.getPort()));
 
         int sleepTime = timeoutMilli + 50;
         String str1 = String.format("sleep %d %s\r\n", sleepTime, randomString(10));

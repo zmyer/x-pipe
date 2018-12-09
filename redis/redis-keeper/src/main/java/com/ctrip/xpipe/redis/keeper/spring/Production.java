@@ -1,6 +1,12 @@
 package com.ctrip.xpipe.redis.keeper.spring;
 
 
+import com.ctrip.xpipe.redis.core.proxy.ProxyResourceManager;
+import com.ctrip.xpipe.redis.core.proxy.endpoint.DefaultProxyEndpointManager;
+import com.ctrip.xpipe.redis.core.proxy.endpoint.NaiveNextHopAlgorithm;
+import com.ctrip.xpipe.redis.core.proxy.endpoint.NextHopAlgorithm;
+import com.ctrip.xpipe.redis.core.proxy.endpoint.ProxyEndpointManager;
+import com.ctrip.xpipe.redis.core.proxy.resource.KeeperProxyResourceManager;
 import com.ctrip.xpipe.redis.keeper.config.DefaultKeeperConfig;
 import com.ctrip.xpipe.redis.keeper.config.DefaultKeeperContainerConfig;
 import com.ctrip.xpipe.redis.keeper.config.KeeperConfig;
@@ -42,4 +48,10 @@ public class Production extends AbstractProfile{
 		return new DefaultKeepersMonitorManager();
 	}
 
+	@Bean
+	public ProxyResourceManager getProxyResourceManager() {
+		ProxyEndpointManager endpointManager = new DefaultProxyEndpointManager(()->2);
+		NextHopAlgorithm algorithm = new NaiveNextHopAlgorithm();
+		return new KeeperProxyResourceManager(endpointManager, algorithm);
+	}
 }

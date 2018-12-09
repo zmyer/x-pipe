@@ -1,14 +1,16 @@
 package com.ctrip.xpipe.redis.core.protocal.cmd;
 
 import com.ctrip.xpipe.api.codec.Codec;
+import com.ctrip.xpipe.api.endpoint.Endpoint;
 import com.ctrip.xpipe.api.payload.InOutPayload;
 import com.ctrip.xpipe.api.pool.SimpleObjectPool;
+import com.ctrip.xpipe.api.proxy.ProxyEnabled;
 import com.ctrip.xpipe.netty.commands.AbstractNettyRequestResponseCommand;
 import com.ctrip.xpipe.netty.commands.NettyClient;
 import com.ctrip.xpipe.payload.ByteArrayOutputStreamPayload;
 import com.ctrip.xpipe.redis.core.exception.RedisRuntimeException;
+import com.ctrip.xpipe.redis.core.protocal.LoggableRedisCommand;
 import com.ctrip.xpipe.redis.core.protocal.RedisClientProtocol;
-import com.ctrip.xpipe.redis.core.protocal.RedisCommand;
 import com.ctrip.xpipe.redis.core.protocal.protocal.*;
 import com.ctrip.xpipe.utils.StringUtil;
 import io.netty.buffer.ByteBuf;
@@ -21,11 +23,17 @@ import java.util.concurrent.ScheduledExecutorService;
  *
  * 2016年3月24日 下午12:04:13
  */
-public abstract class AbstractRedisCommand<T> extends AbstractNettyRequestResponseCommand<T> implements RedisCommand<T>{
+public abstract class AbstractRedisCommand<T> extends AbstractNettyRequestResponseCommand<T> implements LoggableRedisCommand<T> {
 	
 	public static int DEFAULT_REDIS_COMMAND_TIME_OUT_MILLI = Integer.parseInt(System.getProperty("DEFAULT_REDIS_COMMAND_TIME_OUT_SECONDS", "500"));
-	
+
+	public static int PROXYED_REDIS_CONNECTION_COMMAND_TIME_OUT_MILLI = Integer.parseInt(System.getProperty("PROXYED_REDIS_COMMAND_TIME_OUT_SECONDS", "5000"));
+
 	private int commandTimeoutMilli = DEFAULT_REDIS_COMMAND_TIME_OUT_MILLI;
+
+	private boolean logResponse = true;
+
+	private boolean logRequest = true;
 
 	public AbstractRedisCommand(String host, int port, ScheduledExecutorService scheduled){
 		super(host, port, scheduled);
@@ -35,12 +43,22 @@ public abstract class AbstractRedisCommand<T> extends AbstractNettyRequestRespon
 		super(clientPool, scheduled);
 	}
 
+	public AbstractRedisCommand(String host, int port, ScheduledExecutorService scheduled, int commandTimeoutMilli) {
+		super(host, port, scheduled);
+		this.commandTimeoutMilli = commandTimeoutMilli;
+	}
+
+	public AbstractRedisCommand(SimpleObjectPool<NettyClient> clientPool, ScheduledExecutorService scheduled, int commandTimeoutMilli) {
+		super(clientPool, scheduled);
+		this.commandTimeoutMilli = commandTimeoutMilli;
+	}
+
 	public static enum COMMAND_RESPONSE_STATE{
 		READING_SIGN,
 		READING_CONTENT;
 	}
 	
-	private COMMAND_RESPONSE_STATE commandResponseState = COMMAND_RESPONSE_STATE.READING_SIGN;
+	protected COMMAND_RESPONSE_STATE commandResponseState = COMMAND_RESPONSE_STATE.READING_SIGN;
 	
 	private int sign;
 	
@@ -169,6 +187,30 @@ public abstract class AbstractRedisCommand<T> extends AbstractNettyRequestRespon
 		return Boolean.parseBoolean(result);
 	}
 
+	protected String[] payloadToStringArray(Object payload) {
+		if(!(payload instanceof Object[])) {
+			throw new RedisRuntimeException(String.format("payload not array: %s", payload));
+		}
+		Object[] objects = (Object[]) payload;
+		String[] result = new String[objects.length];
+
+		for(int i = 0; i < result.length; i++) {
+			result[i] = payloadToString(objects[i]);
+		}
+
+		return result;
+	}
+
+	protected Long payloadToLong(Object payload) {
+
+		if(payload instanceof Long){
+			return (Long) payload;
+		}
+
+		String result = payloadToString(payload);
+		return Long.parseLong(result);
+	}
+
 	@Override
 	public String getName() {
 		return getClass().getSimpleName();
@@ -183,4 +225,27 @@ public abstract class AbstractRedisCommand<T> extends AbstractNettyRequestRespon
 		this.commandTimeoutMilli = commandTimeoutMilli;
 	}
 
+	@Override
+	protected boolean logRequest() {
+		return logRequest;
+	}
+
+	@Override
+	protected boolean logResponse() {
+		return logResponse;
+	}
+
+	@Override
+	public void logResponse(boolean logResponse) {
+		this.logResponse = logResponse;
+	}
+
+	@Override
+	public void logRequest(boolean logRequest) {
+		this.logRequest = logRequest;
+	}
+
+	protected boolean isProxyEnabled(Endpoint endpoint) {
+		return endpoint instanceof ProxyEnabled;
+	}
 }

@@ -2,14 +2,15 @@ package com.ctrip.xpipe.redis.console.config.impl;
 
 import com.ctrip.xpipe.codec.JsonCodec;
 import com.ctrip.xpipe.redis.console.config.ConsoleConfig;
+import com.ctrip.xpipe.redis.console.config.ConsoleConfigListener;
+import com.ctrip.xpipe.redis.console.healthcheck.actions.interaction.DcClusterDelayMarkDown;
 import com.ctrip.xpipe.redis.core.config.AbstractCoreConfig;
 import com.ctrip.xpipe.redis.core.meta.QuorumConfig;
 import com.ctrip.xpipe.utils.StringUtil;
+import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
 
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 /**
  * @author shyin
@@ -58,6 +59,24 @@ public class DefaultConsoleConfig extends AbstractCoreConfig implements ConsoleC
 
     private static final String KEY_NO_ALARM_MUNITE_FOR_NEW_CLUSTER = "no.alarm.minute.for.new.cluster";
 
+    public static final String KEY_IGNORED_DC_FOR_HEALTH_CHECK = "ignored.dc.for.health.check";
+
+    public static final String KEY_DC_CLUSTER_WONT_MARK_DOWN = "console.dc.cluster.pairs.delay.mark.down";
+
+    private static final String KEY_HEALTHY_DELAY_THROUGH_PROXY = "console.healthy.delay.through.proxy";
+
+    private static final String KEY_DOWN_AFTER_CHECK_NUMS_THROUGH_PROXY = "console.down.after.checknums.through.proxy";
+
+    private static final String KEY_PING_DOWN_AFTER_MILLI = "console.ping.down.after.milli";
+
+    private static final String KEY_PING_DOWN_AFTER_MILLI_THROUGH_PROXY = "console.ping.down.after.milli.through.proxy";
+
+    private static final String KEY_DEFAULT_MARK_DOWN_DELAY_SEC = "console.default.mark.down.delay.sec";
+
+    public static final String KEY_SOCKET_STATS_ANALYZERS = "console.socket.stats.analyzers";
+
+    private Map<String, List<ConsoleConfigListener>> listeners = Maps.newConcurrentMap();
+
     @Override
     public int getAlertSystemRecoverMinute() {
         return getIntProperty(KEY_ALERT_MESSAGE_RECOVER_TIME, 5);
@@ -95,7 +114,7 @@ public class DefaultConsoleConfig extends AbstractCoreConfig implements ConsoleC
 
     @Override
     public String getXRedisMinimumRequestVersion() {
-        return getProperty(KEY_XREDIS_REQUEST_MINI_VERSION, "0.0.1");
+        return getProperty(KEY_XREDIS_REQUEST_MINI_VERSION, "0.0.3");
     }
 
     @Override
@@ -145,8 +164,18 @@ public class DefaultConsoleConfig extends AbstractCoreConfig implements ConsoleC
     }
 
     @Override
+    public int getHealthyDelayMilliThroughProxy() {
+        return getIntProperty(KEY_HEALTHY_DELAY_THROUGH_PROXY, 30 * 1000);
+    }
+
+    @Override
     public int getDownAfterCheckNums() {
         return getIntProperty(KEY_DOWN_AFTER_CHECK_NUMS, 5);
+    }
+
+    @Override
+    public int getDownAfterCheckNumsThroughProxy() {
+        return getIntProperty(KEY_DOWN_AFTER_CHECK_NUMS_THROUGH_PROXY, 10);
     }
 
     @Override
@@ -156,19 +185,23 @@ public class DefaultConsoleConfig extends AbstractCoreConfig implements ConsoleC
 
     @Override
     public Set<String> getAlertWhileList() {
-
-        HashSet result = new HashSet();
         String whitelist = getProperty(KEY_ALERT_WHITE_LIST, "");
-        String[] split = whitelist.split("\\s*(,|;)\\s*");
+
+        return getSplitStringSet(whitelist);
+
+    }
+
+    private Set<String> getSplitStringSet(String str) {
+        HashSet result = new HashSet();
+
+        String[] split = str.split("\\s*(,|;)\\s*");
 
         for(String sp : split){
             if(!StringUtil.isEmpty(sp)){
                 result.add(sp);
             }
         }
-
         return result;
-
     }
 
     @Override
@@ -227,5 +260,62 @@ public class DefaultConsoleConfig extends AbstractCoreConfig implements ConsoleC
     @Override
     public int getNoAlarmMinutesForNewCluster() {
         return getIntProperty(KEY_NO_ALARM_MUNITE_FOR_NEW_CLUSTER, 15);
+    }
+
+    @Override
+    public Set<String> getIgnoredHealthCheckDc() {
+        return getSplitStringSet(getProperty(KEY_IGNORED_DC_FOR_HEALTH_CHECK, ""));
+    }
+
+    private int getDefaultMarkDownDelaySecond() {
+        return getIntProperty(KEY_DEFAULT_MARK_DOWN_DELAY_SEC, 60 * 60);
+    }
+
+    @Override
+    public Set<DcClusterDelayMarkDown> getDelayedMarkDownDcClusters() {
+        Set<DcClusterDelayMarkDown> result = Sets.newHashSet();
+        Set<String> dcClusters = getSplitStringSet(getProperty(KEY_DC_CLUSTER_WONT_MARK_DOWN, ""));
+        for(String dcCluster : dcClusters) {
+            String[] pair = StringUtil.splitRemoveEmpty("\\s*:\\s*", dcCluster);
+            DcClusterDelayMarkDown instance = new DcClusterDelayMarkDown().setDcId(pair[0]).setClusterId(pair[1]);
+            int delaySec = pair.length > 2 ? Integer.parseInt(pair[2]) : getDefaultMarkDownDelaySecond();
+            result.add(instance.setDelaySecond(delaySec));
+        }
+        return result;
+    }
+
+    @Override
+    public int getPingDownAfterMilli() {
+        return getIntProperty(KEY_PING_DOWN_AFTER_MILLI, 12 * 1000);
+    }
+
+    @Override
+    public int getPingDownAfterMilliThroughProxy() {
+        return getIntProperty(KEY_PING_DOWN_AFTER_MILLI_THROUGH_PROXY, 30 * 1000);
+    }
+
+    @Override
+    public void onChange(String key, String oldValue, String newValue) {
+        super.onChange(key, oldValue, newValue);
+        if(!listeners.containsKey(key)) {
+            return;
+        }
+        for(ConsoleConfigListener listener : listeners.get(key)) {
+            listener.onChange(key, oldValue, newValue);
+        }
+    }
+
+    @Override
+    public void register(ConsoleConfigListener consoleConfigListener) {
+        for(String key : consoleConfigListener.supportsKeys()) {
+            listeners.putIfAbsent(key, new LinkedList<>());
+            listeners.get(key).add(consoleConfigListener);
+        }
+    }
+
+    @Override
+    public Map<String, String> getSocketStatsAnalyzingKeys() {
+        String property = getProperty(KEY_SOCKET_STATS_ANALYZERS, "{}");
+        return JsonCodec.INSTANCE.decode(property, Map.class);
     }
 }

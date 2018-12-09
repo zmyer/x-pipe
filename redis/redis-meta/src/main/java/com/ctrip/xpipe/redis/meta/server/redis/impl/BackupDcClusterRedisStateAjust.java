@@ -3,6 +3,7 @@ package com.ctrip.xpipe.redis.meta.server.redis.impl;
 import com.ctrip.xpipe.api.command.CommandFuture;
 import com.ctrip.xpipe.api.command.CommandFutureListener;
 import com.ctrip.xpipe.api.server.Server.SERVER_ROLE;
+import com.ctrip.xpipe.endpoint.DefaultEndPoint;
 import com.ctrip.xpipe.pool.XpipeNettyClientKeyedObjectPool;
 import com.ctrip.xpipe.redis.core.entity.ClusterMeta;
 import com.ctrip.xpipe.redis.core.entity.KeeperMeta;
@@ -14,7 +15,6 @@ import com.ctrip.xpipe.redis.core.protocal.pojo.SlaveRole;
 import com.ctrip.xpipe.redis.meta.server.job.DefaultSlaveOfJob;
 import com.ctrip.xpipe.redis.meta.server.meta.CurrentMetaManager;
 
-import java.net.InetSocketAddress;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.Executor;
@@ -92,7 +92,7 @@ public class BackupDcClusterRedisStateAjust extends AbstractClusterRedisStateAju
 			try{
 				boolean change = false;
 				RoleCommand roleCommand = new RoleCommand(
-						pool.getKeyPool(new InetSocketAddress(redisMeta.getIp(), redisMeta.getPort())),
+						pool.getKeyPool(new DefaultEndPoint(redisMeta.getIp(), redisMeta.getPort())),
 						1000,
 						false, scheduled);
 				Role role = roleCommand.execute().get();

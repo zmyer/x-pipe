@@ -1,13 +1,14 @@
 package com.ctrip.xpipe.utils;
 
 
-import java.net.InetSocketAddress;
-import java.net.SocketAddress;
-
+import io.netty.buffer.Unpooled;
+import io.netty.channel.Channel;
+import io.netty.channel.ChannelFutureListener;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import io.netty.channel.Channel;
+import java.net.InetSocketAddress;
+import java.net.SocketAddress;
 
 /**
  * @author marsqing
@@ -33,7 +34,7 @@ public class ChannelUtil {
 	}
 
 	public static String getRemoteAddr(Channel channel) {
-		
+
 		String remoteIpLocalPort = "unknown";
 		try {
 			SocketAddress remoteAddr = channel.remoteAddress();
@@ -44,7 +45,7 @@ public class ChannelUtil {
 		return remoteIpLocalPort;
 	}
 
-	private static String getSimpleIpport(SocketAddress remoteAddr) {
+	public static String getSimpleIpport(SocketAddress remoteAddr) {
 		
 		if(remoteAddr == null){
 			return null;
@@ -53,7 +54,7 @@ public class ChannelUtil {
 		if(remoteAddr instanceof InetSocketAddress){
 			
 			InetSocketAddress addr = (InetSocketAddress) remoteAddr;
-			return String.format("%s:%d", addr.getHostString(), addr.getPort());
+			return String.format("%s:%d", addr.getAddress().getHostAddress(), addr.getPort());
 		}
 		return remoteAddr.toString();
 	}
@@ -67,4 +68,31 @@ public class ChannelUtil {
 		
 	}
 
+	public static void closeChannelAutoRead(Channel channel) {
+		if(channel == null || !channel.config().isAutoRead()) {
+			return;
+		}
+		channel.config().setAutoRead(false);
+	}
+
+	public static void openChannelAutoRead(Channel channel) {
+		if(channel == null || channel.config().isAutoRead()) {
+			return;
+		}
+		channel.config().setAutoRead(true);
+	}
+
+	public static void triggerChannelAutoRead(Channel channel) {
+		if(channel == null || channel.config().isAutoRead()) {
+			return;
+		}
+		openChannelAutoRead(channel);
+		channel.read();
+	}
+
+	public static void closeOnFlush(Channel ch) {
+		if (ch.isActive()) {
+			ch.writeAndFlush(Unpooled.EMPTY_BUFFER).addListener(ChannelFutureListener.CLOSE);
+		}
+	}
 }

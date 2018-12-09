@@ -1,12 +1,11 @@
 package com.ctrip.xpipe.redis.core.protocal.cmd.transaction;
 
 
+import com.ctrip.xpipe.endpoint.DefaultEndPoint;
 import com.ctrip.xpipe.pool.XpipeNettyClientKeyedObjectPool;
 import com.ctrip.xpipe.redis.core.AbstractRedisTest;
 import org.junit.Assert;
 import org.junit.Test;
-
-import java.net.InetSocketAddress;
 
 /**
  * manual test for local redis
@@ -31,13 +30,13 @@ public class TransactionalSlaveOfCommandTest extends AbstractRedisTest{
 		for(int i=0; i < testCount; i++){
 			
 			logger.info(remarkableMessage("{}"), i);
-			TransactionalSlaveOfCommand command = new TransactionalSlaveOfCommand(getXpipeNettyClientKeyedObjectPool().getKeyPool(new InetSocketAddress(ip, port)), ip, port, scheduled);
+			TransactionalSlaveOfCommand command = new TransactionalSlaveOfCommand(getXpipeNettyClientKeyedObjectPool().getKeyPool(new DefaultEndPoint(ip, port)), ip, port, scheduled);
 			
 			Object []result = command.execute().get();
 			logger.info("{}", (Object)result);
 			
-			Assert.assertEquals(0, pool.getObjectPool().getNumActive());
-			Assert.assertEquals(1, pool.getObjectPool().getNumIdle());
+			Assert.assertEquals(0, pool.getObjectPool(new DefaultEndPoint(ip, port)).getNumActive());
+			Assert.assertEquals(1, pool.getObjectPool(new DefaultEndPoint(ip, port)).getNumIdle());
 		}
 		
 	}

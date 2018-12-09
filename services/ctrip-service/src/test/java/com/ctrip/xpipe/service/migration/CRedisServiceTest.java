@@ -1,18 +1,17 @@
 package com.ctrip.xpipe.service.migration;
 
-import java.net.InetSocketAddress;
-import java.util.LinkedList;
-import java.util.List;
-
+import com.ctrip.xpipe.AbstractServiceTest;
+import com.ctrip.xpipe.api.migration.OuterClientService;
+import com.ctrip.xpipe.api.migration.OuterClientService.MigrationPublishResult;
 import com.ctrip.xpipe.codec.JsonCodec;
 import com.ctrip.xpipe.endpoint.ClusterShardHostPort;
 import com.ctrip.xpipe.endpoint.HostPort;
 import org.junit.Assert;
 import org.junit.Test;
 
-import com.ctrip.xpipe.AbstractServiceTest;
-import com.ctrip.xpipe.api.migration.OuterClientService;
-import com.ctrip.xpipe.api.migration.OuterClientService.MigrationPublishResult;
+import java.net.InetSocketAddress;
+import java.util.LinkedList;
+import java.util.List;
 
 /**
  * @author shyin
@@ -53,7 +52,7 @@ public class CRedisServiceTest extends AbstractServiceTest {
 	}
 
 	private ClusterShardHostPort newHostPort(String host, int port) {
-		return new ClusterShardHostPort("cluster1", "shard1", new HostPort(host, port));
+		return new ClusterShardHostPort("cluster_shyin", "shard2", new HostPort(host, port));
 	}
 
 
@@ -61,7 +60,8 @@ public class CRedisServiceTest extends AbstractServiceTest {
 	public void testMarkStatus() throws Exception {
 
 		try {
-			outerClientService.markInstanceDown(newHostPort("127.0.0.1", 6379));
+			outerClientService.markInstanceDown(newHostPort("10.2.58.244", 6389));
+			outerClientService.markInstanceUp(newHostPort("10.2.58.244", 6389));
 		}catch (Exception e){
 			logger.error("[testMarkStatus]", e);
 		}

@@ -7,13 +7,15 @@ import com.ctrip.xpipe.redis.console.config.ConsoleConfig;
 import com.ctrip.xpipe.redis.console.constant.XPipeConsoleConstant;
 import com.ctrip.xpipe.redis.console.dao.ClusterDao;
 import com.ctrip.xpipe.redis.console.exception.BadRequestException;
-import com.ctrip.xpipe.redis.console.health.delay.DefaultDelayMonitor;
-import com.ctrip.xpipe.redis.console.health.delay.DelayService;
+import com.ctrip.xpipe.redis.console.exception.ServerException;
+import com.ctrip.xpipe.redis.console.healthcheck.actions.delay.DelayAction;
+import com.ctrip.xpipe.redis.console.healthcheck.actions.delay.DelayService;
 import com.ctrip.xpipe.redis.console.migration.status.ClusterStatus;
 import com.ctrip.xpipe.redis.console.model.*;
 import com.ctrip.xpipe.redis.console.model.consoleportal.ClusterListClusterModel;
 import com.ctrip.xpipe.redis.console.notifier.ClusterMetaModifiedNotifier;
 import com.ctrip.xpipe.redis.console.notifier.cluster.ClusterDeleteEventFactory;
+import com.ctrip.xpipe.redis.console.notifier.cluster.ClusterEvent;
 import com.ctrip.xpipe.redis.console.query.DalQuery;
 import com.ctrip.xpipe.redis.console.resources.MetaCache;
 import com.ctrip.xpipe.redis.console.service.*;
@@ -22,10 +24,8 @@ import com.ctrip.xpipe.redis.core.entity.*;
 import com.ctrip.xpipe.spring.AbstractSpringConfigContext;
 import com.ctrip.xpipe.utils.StringUtil;
 import com.ctrip.xpipe.utils.VisibleForTesting;
-import com.google.common.base.Function;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
-import com.google.common.collect.Sets;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.unidal.dal.jdbc.DalException;
@@ -71,6 +71,9 @@ public class ClusterServiceImpl extends AbstractConsoleService<ClusterTblDao> im
 
 	@Resource(name = AbstractSpringConfigContext.SCHEDULED_EXECUTOR)
 	private ScheduledExecutorService scheduled;
+
+	@Autowired
+	private DcClusterService dcClusterService;
 
 	@Override
 	public ClusterTbl find(final String clusterName) {
@@ -252,12 +255,7 @@ public class ClusterServiceImpl extends AbstractConsoleService<ClusterTblDao> im
 		proto.setOrganizationInfo(null);
 		
 		final ClusterTbl queryProto = proto;
-    	queryHandler.handleQuery(new DalQuery<Integer>() {
-			@Override
-			public Integer doQuery() throws DalException {
-				return clusterDao.updateCluster(queryProto);
-			}
-    	});
+    	clusterDao.updateCluster(queryProto);
 	}
 
 	@Override
@@ -267,7 +265,7 @@ public class ClusterServiceImpl extends AbstractConsoleService<ClusterTblDao> im
 		clusterTbl.setId(id);
 		clusterTbl.setActivedcId(activeDcId);
 
-		queryHandler.handleQuery(new DalQuery<Integer>() {
+		queryHandler.handleUpdate(new DalQuery<Integer>() {
 			@Override
 			public Integer doQuery() throws DalException {
 				return dao.updateActivedcId(clusterTbl, ClusterTblEntity.UPDATESET_FULL);
@@ -282,7 +280,7 @@ public class ClusterServiceImpl extends AbstractConsoleService<ClusterTblDao> im
 		clusterTbl.setId(id);
 		clusterTbl.setStatus(clusterStatus.toString());
 
-		queryHandler.handleQuery(new DalQuery<Integer>() {
+		queryHandler.handleUpdate(new DalQuery<Integer>() {
 			@Override
 			public Integer doQuery() throws DalException {
 				return dao.updateStatusById(clusterTbl, ClusterTblEntity.UPDATESET_FULL);
@@ -300,15 +298,16 @@ public class ClusterServiceImpl extends AbstractConsoleService<ClusterTblDao> im
     	final ClusterTbl queryProto = proto;
 
     	// Call cluster delete event
-		clusterDeleteEventFactory.createClusterEvent(clusterName).onEvent();
+		ClusterEvent clusterEvent = clusterDeleteEventFactory.createClusterEvent(clusterName);
 
-    	queryHandler.handleQuery(new DalQuery<Integer>() {
-			@Override
-			public Integer doQuery() throws DalException {
-				return clusterDao.deleteCluster(queryProto);
-			}
-    	});
-    	
+		try {
+			clusterDao.deleteCluster(queryProto);
+		} catch (Exception e) {
+			throw new ServerException(e.getMessage());
+		}
+
+    	clusterEvent.onEvent();
+
     	/** Notify meta server **/
     	notifier.notifyClusterDelete(clusterName, relatedDcs);
 	}
@@ -347,11 +346,10 @@ public class ClusterServiceImpl extends AbstractConsoleService<ClusterTblDao> im
 
 	@Override
 	public void update(final ClusterTbl cluster) {
-		queryHandler.handleQuery(new DalQuery<Integer>() {
+		queryHandler.handleUpdate(new DalQuery<Integer>() {
 			@Override
 			public Integer doQuery() throws DalException {
-				dao.updateByPK(cluster, ClusterTblEntity.UPDATESET_FULL);
-				return 0;
+				return dao.updateByPK(cluster, ClusterTblEntity.UPDATESET_FULL);
 			}
     	});
 	}
@@ -390,7 +388,7 @@ public class ClusterServiceImpl extends AbstractConsoleService<ClusterTblDao> im
 		return clusters;
 	}
 
-    // randomly get 'numOfClusters' cluster names
+    // randomly findRedisHealthCheckInstance 'numOfClusters' cluster names
 	private List<String> randomlyChosenClusters(final List<String> clusters, final int num) {
 		if(clusters == null || clusters.isEmpty() || num >= clusters.size()) return clusters;
 		if(random == null) {
@@ -445,7 +443,7 @@ public class ClusterServiceImpl extends AbstractConsoleService<ClusterTblDao> im
 		for(String dcName : dcToSentinels.keySet()) {
 			List<DcClusterShardTbl> dcClusterShards = dcClusterShardService.findAllByDcCluster(dcName, cluster);
 			List<SetinelTbl> sentinels = dcToSentinels.get(dcName);
-			if(dcClusterShards == null || sentinels == null) {
+			if(dcClusterShards == null || sentinels == null || sentinels.isEmpty()) {
 				throw new XpipeRuntimeException("DcClusterShard | Sentinels should not be null");
 			}
             long randomlySelectedSentinelId = randomlyChoseSentinels(sentinels);
@@ -486,8 +484,8 @@ public class ClusterServiceImpl extends AbstractConsoleService<ClusterTblDao> im
 						for(RedisMeta redisMeta : shardMeta.getRedises()) {
 							HostPort hostPort = new HostPort(redisMeta.getIp(), redisMeta.getPort());
 							long delay = delayService.getDelay(hostPort);
-							if(delay == TimeUnit.NANOSECONDS.toMillis(DefaultDelayMonitor.SAMPLE_LOST_AND_NO_PONG)
-									|| delay == TimeUnit.NANOSECONDS.toMillis(DefaultDelayMonitor.SAMPLE_LOST_BUT_PONG)
+							if(delay == TimeUnit.NANOSECONDS.toMillis(DelayAction.SAMPLE_LOST_AND_NO_PONG)
+									|| delay == TimeUnit.NANOSECONDS.toMillis(DelayAction.SAMPLE_LOST_BUT_PONG)
 									) {
 
 								String clusterName = clusterMeta.getId();
@@ -547,5 +545,31 @@ public class ClusterServiceImpl extends AbstractConsoleService<ClusterTblDao> im
 	@VisibleForTesting
 	protected void setClusterDao(ClusterDao clusterDao) {
 		this.clusterDao = clusterDao;
+	}
+
+	@Override
+	public List<ClusterTbl> findAllClusterByDcNameBind(String dcName){
+		if (StringUtil.isEmpty(dcName))
+			return Collections.emptyList();
+
+		long dcId = dcService.find(dcName).getId();
+
+		List<ClusterTbl> result = queryHandler.handleQuery(new DalQuery<List<ClusterTbl>>() {
+			@Override
+			public List<ClusterTbl> doQuery() throws DalException {
+				return dao.findClustersBindedByDcId(dcId, ClusterTblEntity.READSET_FULL_WITH_ORG);
+			}
+		});
+
+		result = fillClusterOrgName(result);
+		return setOrgNullIfNoOrgIdExsits(result);
+	}
+
+	@Override
+	public List<ClusterTbl> findAllClustersByDcName(String dcName){
+		if (StringUtil.isEmpty(dcName))
+			return Collections.emptyList();
+
+		return findClustersWithOrgInfoByActiveDcId(dcService.find(dcName).getId());
 	}
 }

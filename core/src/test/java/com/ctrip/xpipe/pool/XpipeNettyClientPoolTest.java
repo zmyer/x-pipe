@@ -1,16 +1,13 @@
 package com.ctrip.xpipe.pool;
 
-import java.net.InetSocketAddress;
-
+import com.ctrip.xpipe.AbstractTest;
+import com.ctrip.xpipe.endpoint.DefaultEndPoint;
+import com.ctrip.xpipe.netty.commands.NettyClient;
+import com.ctrip.xpipe.simpleserver.Server;
+import io.netty.channel.Channel;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
-
-import com.ctrip.xpipe.AbstractTest;
-import com.ctrip.xpipe.netty.commands.NettyClient;
-import com.ctrip.xpipe.simpleserver.Server;
-
-import io.netty.channel.Channel;
 
 /**
  * @author wenchao.meng
@@ -30,7 +27,7 @@ public class XpipeNettyClientPoolTest extends AbstractTest {
 	public void testDeadBorrow() throws Exception {
 
 		XpipeNettyClientPool clientPool = new XpipeNettyClientPool(
-				new InetSocketAddress("127.0.0.1", serverPort.getPort()));
+				new DefaultEndPoint("127.0.0.1", serverPort.getPort()));
 
 		clientPool.initialize();
 		clientPool.start();

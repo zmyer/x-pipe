@@ -1,9 +1,8 @@
 package com.ctrip.xpipe.redis.core.protocal.cmd;
 
+import com.ctrip.xpipe.endpoint.DefaultEndPoint;
 import com.ctrip.xpipe.redis.core.AbstractRedisTest;
 import org.junit.Test;
-
-import java.net.InetSocketAddress;
 
 /**
  * @author wenchao.meng
@@ -18,7 +17,7 @@ public class InfoReplicationCommandTest extends AbstractRedisTest{
     @Test
     public void testMasterInfo() throws Exception {
 
-        InfoReplicationCommand command = new InfoReplicationCommand(getXpipeNettyClientKeyedObjectPool().getKeyPool(new InetSocketAddress(host, port)), scheduled);
+        InfoReplicationCommand command = new InfoReplicationCommand(getXpipeNettyClientKeyedObjectPool().getKeyPool(new DefaultEndPoint(host, port)), scheduled);
         logger.info("{}", command.execute().get());
     }
 

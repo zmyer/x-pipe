@@ -1,6 +1,7 @@
 package com.ctrip.xpipe.redis.integratedtest.redis;
 
 import com.ctrip.xpipe.api.pool.SimpleObjectPool;
+import com.ctrip.xpipe.endpoint.DefaultEndPoint;
 import com.ctrip.xpipe.netty.commands.NettyClient;
 import com.ctrip.xpipe.redis.core.entity.RedisMeta;
 import com.ctrip.xpipe.redis.core.protocal.cmd.ConfigSetCommand;
@@ -11,7 +12,6 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.net.InetSocketAddress;
 import java.util.LinkedList;
 import java.util.List;
 
@@ -45,7 +45,7 @@ public class RedisSlaveReplAllTest extends AbstractIntegratedTest{
         redises.forEach((redis) -> {
             try {
                 logger.info("{} readonly no", redis.desc());
-                SimpleObjectPool<NettyClient> keyPool = getXpipeNettyClientKeyedObjectPool().getKeyPool(new InetSocketAddress(redis.getIp(), redis.getPort()));
+                SimpleObjectPool<NettyClient> keyPool = getXpipeNettyClientKeyedObjectPool().getKeyPool(new DefaultEndPoint(redis.getIp(), redis.getPort()));
                 new ConfigSetCommand.ConfigSetSlaveReadOnly(false, keyPool, scheduled).execute().get();
             } catch (Exception e) {
                 logger.error("[slaveWritable]" + redis.desc(), e);
@@ -188,7 +188,7 @@ public class RedisSlaveReplAllTest extends AbstractIntegratedTest{
 
     public void makeSlaveReplAll(RedisMeta slave, boolean replAll) throws Exception {
 
-        SimpleObjectPool<NettyClient> keyPool = getXpipeNettyClientKeyedObjectPool().getKeyPool(new InetSocketAddress(slave.getIp(), slave.getPort()));
+        SimpleObjectPool<NettyClient> keyPool = getXpipeNettyClientKeyedObjectPool().getKeyPool(new DefaultEndPoint(slave.getIp(), slave.getPort()));
         ConfigSetCommand.ConfigSetReplAll configSetReplAll = new ConfigSetCommand.ConfigSetReplAll(replAll, keyPool, scheduled);
         configSetReplAll.execute().get();
     }

@@ -1,16 +1,15 @@
 package com.ctrip.xpipe.utils;
 
+import com.ctrip.xpipe.spring.AbstractProfile;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import com.ctrip.xpipe.spring.AbstractProfile;
 
 /**
  * @author Leo Liang(jhliang@ctrip.com)
@@ -19,13 +18,13 @@ import com.ctrip.xpipe.spring.AbstractProfile;
 public class XpipeThreadFactory implements ThreadFactory {
 	private static Logger logger = LoggerFactory.getLogger(XpipeThreadFactory.class);
 
-	private final AtomicLong m_threadNumber = new AtomicLong(1);
+	protected final AtomicLong m_threadNumber = new AtomicLong(1);
 	
 	public static final int RANDOM_STRING_LEN = 5;
 
-	private final String m_namePrefix;
+	protected final String m_namePrefix;
 
-	private final boolean m_daemon;
+	protected final boolean m_daemon;
 
 	private final static ThreadGroup m_threadGroup = new ThreadGroup("Xpipe");
 

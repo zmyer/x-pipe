@@ -1,5 +1,6 @@
 package com.ctrip.xpipe.redis.console.config;
 
+import com.ctrip.xpipe.redis.console.healthcheck.actions.interaction.DcClusterDelayMarkDown;
 import com.ctrip.xpipe.redis.core.config.CoreConfig;
 import com.ctrip.xpipe.redis.core.meta.QuorumConfig;
 
@@ -31,7 +32,11 @@ public interface ConsoleConfig extends CoreConfig {
 
 	int getHealthyDelayMilli();
 
+	int getHealthyDelayMilliThroughProxy();
+
 	int getDownAfterCheckNums();
+
+	int getDownAfterCheckNumsThroughProxy();
 
 	int getCacheRefreshInterval();
 
@@ -72,4 +77,16 @@ public interface ConsoleConfig extends CoreConfig {
 	int getRebalanceSentinelMaxNumOnce();
 
 	int getNoAlarmMinutesForNewCluster();
+
+	Set<String> getIgnoredHealthCheckDc();
+
+	Set<DcClusterDelayMarkDown> getDelayedMarkDownDcClusters();
+
+	int getPingDownAfterMilli();
+
+	int getPingDownAfterMilliThroughProxy();
+
+	void register(ConsoleConfigListener listener);
+
+	Map<String, String> getSocketStatsAnalyzingKeys();
 }

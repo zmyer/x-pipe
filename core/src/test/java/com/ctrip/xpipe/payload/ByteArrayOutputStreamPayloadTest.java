@@ -1,19 +1,17 @@
 package com.ctrip.xpipe.payload;
 
+import com.ctrip.xpipe.AbstractTest;
+import com.ctrip.xpipe.concurrent.AbstractExceptionLogTask;
+import com.ctrip.xpipe.testutils.MemoryPrinter;
+import io.netty.buffer.ByteBuf;
+import org.junit.Assert;
+import org.junit.Test;
+
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.WritableByteChannel;
 import java.util.concurrent.CountDownLatch;
-
-import org.junit.Assert;
-import org.junit.Test;
-
-import com.ctrip.xpipe.AbstractTest;
-import com.ctrip.xpipe.concurrent.AbstractExceptionLogTask;
-import com.ctrip.xpipe.testutils.MemoryPrinter;
-
-import io.netty.buffer.ByteBuf;
 
 /**
  * @author wenchao.meng
@@ -112,6 +110,21 @@ public class ByteArrayOutputStreamPayloadTest extends AbstractTest{
 		}
 		
 		latch.await();
+	}
+
+	@Test
+	public void testScaleOut() throws Exception {
+		ByteArrayOutputStreamPayload payload = new ByteArrayOutputStreamPayload();
+		String randomStr = randomString();
+
+		ByteBuf byteBuf = directByteBuf(randomStr.length());
+
+		randomStr += randomString(2<<11);
+
+		byteBuf.writeBytes(randomStr.getBytes());
+		payload.startInput();
+		payload.in(byteBuf);
+		payload.endInput();
 	}
 
 }

@@ -2,22 +2,14 @@ package com.ctrip.xpipe.redis.console.service.impl;
 
 import com.ctrip.xpipe.endpoint.HostPort;
 import com.ctrip.xpipe.redis.console.dao.ClusterDao;
-import com.ctrip.xpipe.redis.console.health.delay.DefaultDelayMonitor;
-import com.ctrip.xpipe.redis.console.health.delay.DelayService;
-import com.ctrip.xpipe.redis.console.migration.status.ClusterStatus;
-import com.ctrip.xpipe.redis.console.model.*;
+import com.ctrip.xpipe.redis.console.healthcheck.actions.delay.DelayAction;
+import com.ctrip.xpipe.redis.console.healthcheck.actions.delay.DelayService;
+import com.ctrip.xpipe.redis.console.model.ClusterTbl;
 import com.ctrip.xpipe.redis.console.model.consoleportal.ClusterListClusterModel;
 import com.ctrip.xpipe.redis.console.resources.MetaCache;
-import com.ctrip.xpipe.redis.console.service.ClusterService;
-import com.ctrip.xpipe.redis.console.service.DcService;
-import com.ctrip.xpipe.redis.console.service.OrganizationService;
-import com.ctrip.xpipe.redis.console.service.ShardService;
 import com.ctrip.xpipe.redis.core.entity.*;
-import com.ctrip.xpipe.tuple.Pair;
 import com.google.common.base.Function;
 import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
-import com.google.common.collect.Sets;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -26,15 +18,11 @@ import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
-import org.springframework.beans.factory.annotation.Autowired;
 
-import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyList;
-import static org.mockito.Matchers.anyListOf;
 import static org.mockito.Mockito.when;
 
 
@@ -61,7 +49,7 @@ public class ClusterServiceImplTest2 {
     @Test
     public void testFindUnhealthyClusters() throws Exception {
         when(delayService.getDelay(any())).thenReturn(10L);
-        when(delayService.getDelay(new HostPort("127.0.0.2", 6379))).thenReturn(DefaultDelayMonitor.SAMPLE_LOST_BUT_PONG);
+        when(delayService.getDelay(new HostPort("127.0.0.2", 6379))).thenReturn(DelayAction.SAMPLE_LOST_BUT_PONG);
         when(clusterDao.findClustersWithName(Lists.newArrayList("cluster1")))
                 .thenReturn(Lists.newArrayList(new ClusterTbl().setClusterName("cluster1")));
 
@@ -76,8 +64,8 @@ public class ClusterServiceImplTest2 {
     @Test
     public void testFindUnhealthyClusters2() throws Exception {
         when(delayService.getDelay(any())).thenReturn(10L);
-        when(delayService.getDelay(new HostPort("127.0.0.2", 6379))).thenReturn(DefaultDelayMonitor.SAMPLE_LOST_BUT_PONG);
-        when(delayService.getDelay(new HostPort("127.0.0.4", 6380))).thenReturn(DefaultDelayMonitor.SAMPLE_LOST_AND_NO_PONG);
+        when(delayService.getDelay(new HostPort("127.0.0.2", 6379))).thenReturn(DelayAction.SAMPLE_LOST_BUT_PONG);
+        when(delayService.getDelay(new HostPort("127.0.0.4", 6380))).thenReturn(DelayAction.SAMPLE_LOST_AND_NO_PONG);
         when(clusterDao.findClustersWithName(anyList())).then(new Answer<List<ClusterTbl>>() {
             @Override
             public List<ClusterTbl> answer(InvocationOnMock invocation) throws Throwable {

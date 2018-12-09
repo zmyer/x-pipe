@@ -1,19 +1,18 @@
 package com.ctrip.xpipe.netty.commands;
 
-import java.util.Queue;
-import java.util.concurrent.ConcurrentLinkedQueue;
-
 import com.ctrip.xpipe.netty.ByteBufUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import com.ctrip.xpipe.utils.ChannelUtil;
-
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.DefaultChannelPromise;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.util.Queue;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * @author wenchao.meng
@@ -24,13 +23,13 @@ public class DefaultNettyClient implements NettyClient{
 	
 	private Logger logger = LoggerFactory.getLogger(DefaultNettyClient.class);
 	
-	private Channel channel;
-	private final String desc;
+	protected Channel channel;
+	protected final AtomicReference<String> desc = new AtomicReference<>();
 	private Queue<ByteBufReceiver> receivers = new ConcurrentLinkedQueue<>();
 	
 	public DefaultNettyClient(Channel channel) {
 		this.channel = channel;
-		this.desc = ChannelUtil.getDesc(channel);
+		this.desc.set(ChannelUtil.getDesc(channel));
 		channel.closeFuture().addListener(new ChannelFutureListener() {
 			
 			@Override
@@ -122,6 +121,6 @@ public class DefaultNettyClient implements NettyClient{
 	
 	@Override
 	public String toString() {
-		return desc;
+		return desc.get();
 	}
 }

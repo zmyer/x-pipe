@@ -1,27 +1,22 @@
 package com.ctrip.xpipe.netty.commands;
 
-import java.net.InetSocketAddress;
-import java.util.concurrent.TimeUnit;
-
+import com.ctrip.xpipe.api.endpoint.Endpoint;
+import com.ctrip.xpipe.api.proxy.ProxyEnabled;
+import com.ctrip.xpipe.lifecycle.AbstractStartStoppable;
+import com.ctrip.xpipe.netty.NettySimpleMessageHandler;
+import io.netty.bootstrap.Bootstrap;
+import io.netty.channel.*;
+import io.netty.channel.nio.NioEventLoopGroup;
+import io.netty.channel.socket.SocketChannel;
+import io.netty.channel.socket.nio.NioSocketChannel;
+import io.netty.handler.logging.LoggingHandler;
 import org.apache.commons.pool2.PooledObject;
 import org.apache.commons.pool2.PooledObjectFactory;
 import org.apache.commons.pool2.impl.DefaultPooledObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.ctrip.xpipe.lifecycle.AbstractStartStoppable;
-import com.ctrip.xpipe.netty.NettySimpleMessageHandler;
-
-import io.netty.bootstrap.Bootstrap;
-import io.netty.channel.Channel;
-import io.netty.channel.ChannelFuture;
-import io.netty.channel.ChannelInitializer;
-import io.netty.channel.ChannelOption;
-import io.netty.channel.ChannelPipeline;
-import io.netty.channel.nio.NioEventLoopGroup;
-import io.netty.channel.socket.SocketChannel;
-import io.netty.channel.socket.nio.NioSocketChannel;
-import io.netty.handler.logging.LoggingHandler;
+import java.util.concurrent.TimeUnit;
 
 /**
  * @author wenchao.meng
@@ -34,10 +29,10 @@ public class NettyClientFactory extends AbstractStartStoppable implements Pooled
 	private Bootstrap b = new Bootstrap();
 	private int connectTimeoutMilli = 5000;
 	private static Logger logger = LoggerFactory.getLogger(NettyClientFactory.class);
-	private InetSocketAddress address;
+	private Endpoint endpoint;
 
-	public NettyClientFactory(InetSocketAddress address) {
-		this.address = address;
+	public NettyClientFactory(Endpoint endpoint) {
+		this.endpoint = endpoint;
 	}
 
 	@Override
@@ -64,19 +59,26 @@ public class NettyClientFactory extends AbstractStartStoppable implements Pooled
 	@Override
 	public PooledObject<NettyClient> makeObject() throws Exception {
 
-		ChannelFuture f = b.connect(address);
+		ChannelFuture f = b.connect(endpoint.getHost(), endpoint.getPort());
 		f.get(connectTimeoutMilli, TimeUnit.MILLISECONDS);
 		Channel channel = f.channel();
+		sendProxyProtocolIfNeeded(channel);
 		logger.info("[makeObject]{}", channel);
 		NettyClient nettyClient = new DefaultNettyClient(channel);
 		channel.attr(NettyClientHandler.KEY_CLIENT).set(nettyClient);
 		return new DefaultPooledObject<NettyClient>(nettyClient);
 	}
 
+	private void sendProxyProtocolIfNeeded(Channel channel) {
+		if(endpoint instanceof ProxyEnabled) {
+			channel.writeAndFlush(((ProxyEnabled) endpoint).getProxyProtocol());
+		}
+	}
+
 	@Override
 	public void destroyObject(PooledObject<NettyClient> p) throws Exception {
 
-		logger.info("[destroyObject]{}, {}", address, p.getObject());
+		logger.info("[destroyObject]{}, {}", endpoint, p.getObject());
 		p.getObject().channel().close();
 
 	}
@@ -98,7 +100,7 @@ public class NettyClientFactory extends AbstractStartStoppable implements Pooled
 
 	@Override
 	public String toString() {
-		return String.format("T:%s", address.toString());
+		return String.format("T:%s", endpoint.toString());
 	}
 
 }

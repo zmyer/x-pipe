@@ -7,7 +7,9 @@ import com.ctrip.xpipe.redis.console.controller.api.data.meta.RedisCreateInfo;
 import com.ctrip.xpipe.redis.console.controller.api.data.meta.ShardCreateInfo;
 import com.ctrip.xpipe.redis.console.model.RedisTbl;
 import com.ctrip.xpipe.redis.console.model.ShardTbl;
-import com.ctrip.xpipe.redis.console.service.*;
+import com.ctrip.xpipe.redis.console.service.ClusterService;
+import com.ctrip.xpipe.redis.console.service.RedisService;
+import com.ctrip.xpipe.redis.console.service.ShardService;
 import com.ctrip.xpipe.utils.StringUtil;
 import com.google.common.collect.Lists;
 import org.junit.Assert;
@@ -16,7 +18,9 @@ import org.junit.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
 import java.util.List;
-import java.util.concurrent.*;
+import java.util.concurrent.SynchronousQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 /**
@@ -162,7 +166,6 @@ public class MetaUpdateTest3 extends AbstractConsoleIntegrationTest {
         int taskNum = 10;
         ThreadPoolExecutor executorService = new ThreadPoolExecutor(taskNum, taskNum, 1L, TimeUnit.SECONDS,
                 new SynchronousQueue<>());
-        executorService.prestartAllCoreThreads();
         executorService.allowsCoreThreadTimeOut();
 
         for(int i = 0; i < taskNum; i++) {
@@ -198,7 +201,6 @@ public class MetaUpdateTest3 extends AbstractConsoleIntegrationTest {
         int taskNum = 3;
         ThreadPoolExecutor executorService = new ThreadPoolExecutor(taskNum, taskNum, 1L, TimeUnit.SECONDS,
                 new SynchronousQueue<>());
-        executorService.prestartAllCoreThreads();
         executorService.allowsCoreThreadTimeOut();
 
         for(int i = 0; i < taskNum; i++) {
@@ -220,6 +222,17 @@ public class MetaUpdateTest3 extends AbstractConsoleIntegrationTest {
         List<ShardTbl> shards = shardService.findAllByClusterName(clusterName);
         logger.info("{}", shards);
         Assert.assertEquals(1, shards.size());
+    }
+
+    @Test
+    public void testGetCluster() throws Exception {
+        createCluster();
+        ClusterCreateInfo clusterCreateInfo = metaUpdate.getCluster(clusterName);
+        Assert.assertEquals(clusterName, clusterCreateInfo.getClusterName());
+        Assert.assertEquals(3L, (long)clusterCreateInfo.getOrganizationId());
+        Assert.assertEquals(2, clusterCreateInfo.getDcs().size());
+        Assert.assertEquals(activeDC, clusterCreateInfo.getDcs().get(0));
+        Assert.assertEquals(backupDC, clusterCreateInfo.getDcs().get(1));
     }
 
     private List<RedisCreateInfo> createInfo(List<String> activeDcRedis, List<String> backupDcRedis) {

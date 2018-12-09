@@ -1,11 +1,13 @@
 package com.ctrip.xpipe.redis.console.controller.api.data;
 
 import com.ctrip.xpipe.api.migration.DC_TRANSFORM_DIRECTION;
-import com.ctrip.xpipe.endpoint.HostPort;
 import com.ctrip.xpipe.redis.console.annotation.DalTransaction;
 import com.ctrip.xpipe.redis.console.controller.AbstractConsoleController;
 import com.ctrip.xpipe.redis.console.controller.api.RetMessage;
-import com.ctrip.xpipe.redis.console.controller.api.data.meta.*;
+import com.ctrip.xpipe.redis.console.controller.api.data.meta.CheckFailException;
+import com.ctrip.xpipe.redis.console.controller.api.data.meta.ClusterCreateInfo;
+import com.ctrip.xpipe.redis.console.controller.api.data.meta.RedisCreateInfo;
+import com.ctrip.xpipe.redis.console.controller.api.data.meta.ShardCreateInfo;
 import com.ctrip.xpipe.redis.console.model.*;
 import com.ctrip.xpipe.redis.console.resources.MetaCache;
 import com.ctrip.xpipe.redis.console.service.*;
@@ -13,10 +15,8 @@ import com.ctrip.xpipe.redis.console.service.exception.ResourceNotFoundException
 import com.ctrip.xpipe.redis.core.entity.XpipeMeta;
 import com.ctrip.xpipe.redis.core.meta.ClusterShardCounter;
 import com.ctrip.xpipe.redis.core.protocal.RedisProtocol;
-import com.ctrip.xpipe.tuple.Pair;
 import com.ctrip.xpipe.utils.ObjectUtils;
 import com.ctrip.xpipe.utils.VisibleForTesting;
-import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
@@ -221,27 +221,21 @@ public class MetaUpdate extends AbstractConsoleController {
 
         List<ClusterCreateInfo> result = new LinkedList<>();
         allClusters.forEach(clusterTbl -> {
-
-            ClusterCreateInfo clusterCreateInfo = new ClusterCreateInfo();
-            clusterCreateInfo.setDesc(clusterTbl.getClusterDescription());
-            clusterCreateInfo.setClusterName(clusterTbl.getClusterName());
-            OrganizationTbl organizationTbl = clusterTbl.getOrganizationInfo();
-            clusterCreateInfo.setOrganizationId(organizationTbl != null ? organizationTbl.getOrgId() : 0L);
-            clusterCreateInfo.setClusterAdminEmails(clusterTbl.getClusterAdminEmails());
-
-            List<DcTbl> clusterRelatedDc = dcService.findClusterRelatedDc(clusterTbl.getClusterName());
-            clusterRelatedDc.forEach(dcTbl -> {
-
-                if (dcTbl.getId() == clusterTbl.getActivedcId()) {
-                    clusterCreateInfo.addFirstDc(dcTbl.getDcName());
-                } else {
-                    clusterCreateInfo.addDc(dcTbl.getDcName());
-                }
-            });
-            result.add(clusterCreateInfo);
+            result.add(ClusterCreateInfo.fromClusterTbl(clusterTbl, dcService));
         });
 
         return transformFromInner(result);
+    }
+
+    @RequestMapping(value = "/cluster/" + CLUSTER_NAME_PATH_VARIABLE, method = RequestMethod.GET)
+    public ClusterCreateInfo getCluster(@PathVariable String clusterName) {
+
+        logger.info("[getCluster]{}", clusterName);
+
+        ClusterTbl clusterTbl = clusterService.findClusterAndOrg(clusterName);
+        ClusterCreateInfo clusterCreateInfo = ClusterCreateInfo.fromClusterTbl(clusterTbl, dcService);
+
+        return transform(clusterCreateInfo, DC_TRANSFORM_DIRECTION.INNER_TO_OUTER);
     }
 
     private List<ClusterCreateInfo> transformFromInner(List<ClusterCreateInfo> source) {
@@ -412,7 +406,7 @@ public class MetaUpdate extends AbstractConsoleController {
                 try {
                     redisService.deleteKeepers(dcId, clusterId, shardTbl.getShardName());
                 } catch (ResourceNotFoundException ignore) {
-                    // should not catch this, as we already get keepers
+                    // should not catch this, as we already findRedisHealthCheckInstance keepers
                 }
             } else {
                 // if size == 2, do nothing

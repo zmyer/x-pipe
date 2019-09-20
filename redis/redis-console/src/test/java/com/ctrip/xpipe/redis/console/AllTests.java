@@ -2,6 +2,7 @@ package com.ctrip.xpipe.redis.console;
 
 
 import com.ctrip.xpipe.redis.console.alert.manager.AlertPolicyManagerTest;
+import com.ctrip.xpipe.redis.console.alert.message.holder.DefaultAlertEntityHolderTest;
 import com.ctrip.xpipe.redis.console.cluster.ConsoleCrossDcServerTest;
 import com.ctrip.xpipe.redis.console.config.impl.DefaultConsoleConfigTest;
 import com.ctrip.xpipe.redis.console.config.impl.DefaultConsoleDbConfigTest;
@@ -29,6 +30,11 @@ import com.ctrip.xpipe.redis.console.healthcheck.factory.DefaultHealthCheckEndpo
 import com.ctrip.xpipe.redis.console.healthcheck.factory.DefaultRedisHealthCheckInstanceFactoryTest;
 import com.ctrip.xpipe.redis.console.healthcheck.factory.HealthCheckEndpointFactoryTest;
 import com.ctrip.xpipe.redis.console.healthcheck.meta.DcIgnoredConfigListenerTest;
+import com.ctrip.xpipe.redis.console.healthcheck.nonredis.cluster.ClusterHealthStateTest;
+import com.ctrip.xpipe.redis.console.healthcheck.nonredis.cluster.impl.DefaultClusterHealthMonitorManagerTest;
+import com.ctrip.xpipe.redis.console.healthcheck.nonredis.cluster.impl.DefaultClusterHealthMonitorTest;
+import com.ctrip.xpipe.redis.console.healthcheck.nonredis.cluster.impl.DefaultLeveledEmbededSetTest;
+import com.ctrip.xpipe.redis.console.healthcheck.nonredis.migration.MigrationSystemAvailableCheckTest;
 import com.ctrip.xpipe.redis.console.migration.SingleShardMigrationTest;
 import com.ctrip.xpipe.redis.console.migration.model.DefaultMigrationClusterTest;
 import com.ctrip.xpipe.redis.console.migration.model.DefaultMigrationShardTest;
@@ -50,6 +56,7 @@ import com.ctrip.xpipe.redis.console.service.impl.*;
 import com.ctrip.xpipe.redis.console.service.meta.impl.AdvancedDcMetaServiceTest;
 import com.ctrip.xpipe.redis.console.service.meta.impl.AdvancedDcMetaServiceTestForRoute;
 import com.ctrip.xpipe.redis.console.service.meta.impl.ClusterMetaServiceImplTest;
+import com.ctrip.xpipe.redis.console.service.migration.impl.DefaultCheckMigrationCommandBuilderTest;
 import org.junit.runner.RunWith;
 import org.junit.runners.Suite;
 import org.junit.runners.Suite.SuiteClasses;
@@ -144,7 +151,14 @@ import org.junit.runners.Suite.SuiteClasses;
         TestForAbstractMultiValueTunnelSocketStatsAnalyzer.class,
         TestForAbstractNormalKeyValueTunnelSocketStatsAnalyzer.class,
         DefaultTunnelSocketStatsAnalyzerManagerTest.class,
-        TunnelSocketStatsAnalyzersTest.class
+        TunnelSocketStatsAnalyzersTest.class,
+        ClusterHealthStateTest.class,
+        DefaultLeveledEmbededSetTest.class,
+        DefaultClusterHealthMonitorTest.class,
+        DefaultClusterHealthMonitorManagerTest.class,
+        MigrationSystemAvailableCheckTest.class,
+        DefaultCheckMigrationCommandBuilderTest.class,
+        DefaultAlertEntityHolderTest.class
 })
 public class AllTests {
 
